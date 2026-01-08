@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 🎨 تصميم الألوان (CSS Fix) ---
+# --- 🎨 التصميم (CSS) - إصلاح التباين ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
@@ -24,7 +24,6 @@ st.markdown("""
     /* الألوان الثابتة */
     :root {
         --brand-blue: #034275;
-        --text-dark: #333333;
         --card-white: #ffffff;
     }
 
@@ -32,81 +31,93 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* --- إصلاح البطاقات (الحل الجذري للقراءة) --- */
-    /* نجبر البطاقة تكون بيضاء والنص بداخلها غامق دائماً */
+    /* === 1. صناديق المحتوى (الحل الجذري) === */
+    /* نضع أي نص أو عنوان داخل هذا الصندوق ليظهر بخلفية بيضاء دائماً */
+    .content-box {
+        background-color: var(--card-white) !important;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        border-top: 5px solid var(--brand-blue);
+    }
+
+    .content-box h2, .content-box h3, .content-box p, .content-box div {
+        color: #333 !important; /* نص غامق دائماً على خلفية بيضاء */
+    }
     
+    .content-title {
+        color: var(--brand-blue) !important;
+        font-weight: 800;
+        margin: 0;
+    }
+
+    /* === 2. بطاقات المؤشرات (KPIs) === */
     .metric-card {
         background-color: var(--card-white) !important;
         border: 1px solid #e0e0e0;
         border-radius: 10px;
         padding: 15px 5px;
         text-align: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        box-shadow: 0 3px 6px rgba(0,0,0,0.05);
         height: 160px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        transition: transform 0.2s;
     }
+    .metric-card:hover { transform: translateY(-5px); }
     
-    /* نجبر العناوين داخل البطاقة على اللون الرمادي */
-    .metric-card .metric-label {
-        color: #666666 !important; 
-        font-size: 13px; 
+    .metric-label {
+        color: #666 !important;
+        font-size: 13px;
         font-weight: 700;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
+        white-space: nowrap;
     }
     
-    /* نجبر الأرقام على اللون الكحلي */
-    .metric-card .metric-value {
-        color: #034275 !important;
+    .metric-value {
+        color: var(--brand-blue) !important;
         font-size: 20px;
         font-weight: 800;
         margin: 0;
         direction: ltr;
     }
     
-    .metric-card .metric-sub {
-        color: #888888 !important;
+    .metric-sub {
+        color: #888 !important;
         font-size: 11px;
-        margin-top: 5px;
+        margin-top: 8px;
         font-weight: bold;
     }
 
-    /* --- بطاقات البائعين (إصلاح الألوان) --- */
+    /* === 3. بطاقات البائعين === */
     .salesman-box {
         background-color: var(--card-white) !important;
         border-radius: 12px;
         padding: 18px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        border-right: 5px solid #034275;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        border-right: 5px solid var(--brand-blue);
         margin-bottom: 15px;
         direction: rtl;
         border: 1px solid #eee;
     }
 
-    /* النصوص داخل بطاقة البائع */
-    .salesman-box .s-name {
-        color: #034275 !important;
-        font-size: 18px;
-        font-weight: 800;
+    .s-header {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-bottom: 12px;
+        text-align: right;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     
-    .salesman-box .s-label {
-        color: #555555 !important;
-        font-size: 13px;
-        font-weight: 600;
-    }
-    
-    .salesman-box .s-val {
-        color: #000000 !important; /* أسود صريح */
-        font-size: 14px;
-        font-weight: 800;
-    }
-    
-    /* فواصل الأسطر */
-    .s-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 12px; }
-    .s-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #f5f5f5; padding-bottom: 4px; }
+    .s-name { color: var(--brand-blue) !important; font-size: 18px; font-weight: 800; }
+    .s-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; direction: rtl; border-bottom: 1px dashed #f5f5f5; padding-bottom: 4px; }
+    .s-label { color: #555 !important; font-size: 13px; font-weight: 600; }
+    .s-val { color: #333 !important; font-size: 14px; font-weight: 800; font-family: 'Tajawal', sans-serif; }
 
     /* أنيميشن */
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -195,7 +206,7 @@ with st.sidebar:
     selected_page = st.radio(
         "القائمة الرئيسية",
         ["💰 المبيعات (Sales)", "💸 التحصيل (قريباً)"],
-        index=0
+        index=0 # الافتراضي المبيعات
     )
     
     st.markdown("---")
@@ -216,12 +227,15 @@ if selected_page == "💰 المبيعات (Sales)":
         
         if df is not None:
             # Header
-            st.markdown('<div class="row-anim d-1">', unsafe_allow_html=True)
-            st.markdown("<h2 style='color:#034275; margin:0;'>💰 تحليل المبيعات والأداء</h2>", unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="row-anim d-1 content-box">
+                <h2 class="content-title">💰 تحليل المبيعات والأداء</h2>
+                <p>لوحة المعلومات المالية والفنية</p>
+            </div>
+            """, unsafe_allow_html=True)
 
             # Filters
-            st.markdown('<div class="row-anim d-2" style="background:white; padding:15px; border-radius:10px; margin:20px 0;">', unsafe_allow_html=True)
+            st.markdown('<div class="row-anim d-2 content-box">', unsafe_allow_html=True)
             min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
             fc1, fc2 = st.columns(2)
             with fc1: d_range = st.date_input("📅 الفترة الزمنية", [min_d, max_d])
@@ -281,9 +295,9 @@ if selected_page == "💰 المبيعات (Sales)":
                 s_ret_c = data[data['Amount'] < 0]['TransCode'].nunique()
                 s_inv = data[data['Amount'] > 0]['TransCode'].nunique()
                 border = "#27ae60" if is_total else "#034275"
-                name_col = "#000" if is_total else "#034275"
+                name_col = "#034275"
                 
-                html = f"""<div class="salesman-box" style="border-right: 5px solid {border};"><div class="s-header"><div class="s-name" style="color:{name_col} !important">{name}</div>{'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px; color:#333;">الإجمالي</span>' if is_total else ''}</div><div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net:,.0f}</span></div><div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_prof:,.0f} ({s_marg:.1f}%)</span></div><div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv}</span></div><div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;"><span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span><span class="s-val" style="color:#c0392b !important">{s_ret_v:,.0f} (عدد: {s_ret_c})</span></div></div>"""
+                html = f"""<div class="salesman-box" style="border-right: 5px solid {border};"><div class="s-header"><div class="s-name" style="color:{name_col} !important">{name}</div>{'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px; color:#333;">الإجمالي</span>' if is_total else ''}</div><div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net:,.0f}</span></div><div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_prof:,.0f} ({s_marg:.1f}%)</span></div><div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv}</span></div><div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;"><span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span><span class="s-val" style="color:#c0392b !important">{s_ret_v:,.0f} ({s_ret_c})</span></div></div>"""
                 with col: st.markdown(html, unsafe_allow_html=True)
 
             idx = 0
@@ -294,9 +308,8 @@ if selected_page == "💰 المبيعات (Sales)":
             draw_salesman(cols[2], "إجمالي الفريق", df_filtered, is_total=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Charts
-            st.markdown('<div class="row-anim d-5">', unsafe_allow_html=True)
-            st.markdown("---")
+            # Charts (Row 5)
+            st.markdown('<div class="row-anim d-5 content-box">', unsafe_allow_html=True)
             t1, t2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
             with t1:
                 dly = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
@@ -309,7 +322,7 @@ if selected_page == "💰 المبيعات (Sales)":
                 st.plotly_chart(fig_pie, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Table
+            # Table (Row 6)
             st.markdown('<div class="row-anim d-6">', unsafe_allow_html=True)
             st.markdown("---")
             c1, c2 = st.columns([3, 1])
@@ -329,3 +342,20 @@ if selected_page == "💰 المبيعات (Sales)":
             
     else:
         st.warning("⚠️ الرجاء رفع ملفات الفواتير من القائمة الجانبية لعرض المبيعات.")
+
+# ==========================
+# صفحة 2: التحصيل والديون (الصفحة الجديدة)
+# ==========================
+elif selected_page == "💸 التحصيل (قريباً)":
+    # وضعنا المحتوى في صندوق أبيض ليكون ظاهراً
+    st.markdown("""
+    <div class="content-box">
+        <h2 class="content-title">💸 مراقبة الديون والتحصيل</h2>
+        <p>هذه الصفحة مخصصة لتحليل كشوفات الحساب والديون.</p>
+        <hr>
+        <p style="color:#c0392b;">⚠️ البيانات المطلوبة:</p>
+        <p>لتحليل التحصيل، نحتاج لملف <b>LedgerBook.xml</b>. ملفات الفواتير الحالية لا تحتوي على معلومات السداد.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.file_uploader("📂 رفع ملف دفتر الأستاذ (قريباً)", disabled=True)
