@@ -31,7 +31,7 @@ if st.session_state["password"] != st.secrets["PASSWORD"]:
 
 # --- 3. دالة المعالجة الذكية ---
 @st.cache_data(ttl=3600)
-def load_data(file_header, file_items):
+def load_data(file_header, file_items, cost_col_name):
     try:
         # قراءة الملفات
         tree_h = ET.parse(file_header)
@@ -49,27 +49,31 @@ def load_data(file_header, file_items):
             origin='1899-12-30'
         )
         
-        # تنظيف الأرقام
-        df_header['GrandTotal'] = pd.to_numeric(df_header['InvoiceTotal'], errors='coerce').fillna(0)
-        
         # 2. تنظيف الأصناف
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
         df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0)
-        df_items['Cost'] = pd.to_numeric(df_items['CostFactor'], errors='coerce').fillna(0)
-        df_items['Profit'] = df_items['Amount'] - (df_items['Cost'] * df_items['Qty'])
+        
+        # 🔥 ديناميكية التكلفة (حسب اختيارك) 🔥
+        # إذا لم نجد العمود المختار، نعتبر التكلفة صفر
+        if cost_col_name in df_items.columns:
+            df_items['CostUnit'] = pd.to_numeric(df_items[cost_col_name], errors='coerce').fillna(0)
+        else:
+            df_items['CostUnit'] = 0
+            
+        df_items['TotalCost'] = df_items['CostUnit'] * df_items['Qty']
+        df_items['Profit'] = df_items['Amount'] - df_items['TotalCost']
 
-        # 🔥 حل مشكلة التصادم (الخطوة الجديدة) 🔥
-        # نحذف SalesMan من الأصناف إذا وجد، لنعتمد على الفاتورة فقط
+        # حذف SalesMan من الأصناف لمنع التصادم
         if 'SalesMan' in df_items.columns:
             df_items = df_items.drop(columns=['SalesMan'])
 
-        # توحيد اسم البائع في الفواتير
+        # توحيد اسم البائع
         if 'SalesPerson' in df_header.columns:
             df_header['SalesMan'] = df_header['SalesPerson']
         else:
             df_header['SalesMan'] = 'غير محدد'
 
-        # 4. الدمج
+        # 3. الدمج
         full_data = pd.merge(
             df_items, 
             df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'SalesMan']], 
@@ -89,20 +93,27 @@ st.title("📊 لوحة القيادة: تحليل نشاط قطع الغيار"
 st.markdown("---")
 
 with st.sidebar:
-    st.header("📂 مركز البيانات")
-    uploaded_header = st.file_uploader("1. ملف الفواتير (StockInvoiceDetails)", type=['xml'])
-    uploaded_items = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems)", type=['xml'])
+    st.header("📂 إعدادات البيانات")
+    uploaded_header = st.file_uploader("1. ملف الفواتير (InvoiceDetails)", type=['xml'])
+    uploaded_items = st.file_uploader("2. ملف الأصناف (RowItems)", type=['xml'])
     
     st.markdown("---")
-    st.write("©️ 2026 - الإصدار الخاص")
+    st.header("⚙️ ضبط التكلفة")
+    # القائمة السحرية لاختيار عمود التكلفة
+    cost_option = st.selectbox(
+        "اختر العمود الذي يمثل التكلفة:",
+        ('CurrentStockRate', 'CostFactor', 'BasicPrice', 'StockRate'),
+        index=0 # الافتراضي هو CurrentStockRate
+    )
+    st.caption("جرب تغيير الخيار حتى يظهر هامش الربح بشكل منطقي.")
 
 if uploaded_header and uploaded_items:
     
-    df_merged = load_data(uploaded_header, uploaded_items)
+    df_merged = load_data(uploaded_header, uploaded_items, cost_option)
     
     if df_merged is not None and not df_merged.empty:
         
-        # --- الفلاتر ---
+        # الفلاتر
         col_fil1, col_fil2, col_fil3 = st.columns(3)
         with col_fil1:
             min_date = df_merged['Date'].min().date()
@@ -128,44 +139,45 @@ if uploaded_header and uploaded_items:
         
         if selected_salesman != 'الكل':
             filtered_df = filtered_df[filtered_df['SalesMan'] == selected_salesman]
-            
         if selected_group != 'الكل':
             filtered_df = filtered_df[filtered_df['stockgroup'] == selected_group]
 
-        # --- المؤشرات والرسوم ---
-        st.markdown("### 📌 نظرة عامة مالية")
+        # KPIs
+        st.markdown("### 📌 الأداء المالي")
         
         total_sales = filtered_df['Amount'].sum()
         total_profit = filtered_df['Profit'].sum()
-        total_cost = (filtered_df['Cost'] * filtered_df['Qty']).sum()
+        total_cost = filtered_df['TotalCost'].sum()
         profit_margin = (total_profit / total_sales * 100) if total_sales > 0 else 0
         
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("إجمالي المبيعات", f"{total_sales:,.0f} ر.س")
-        kpi2.metric("الربح التقديري", f"{total_profit:,.0f} ر.س", delta=f"{profit_margin:.1f}%")
-        kpi3.metric("التكلفة", f"{total_cost:,.0f} ر.س")
+        # تلوين الربح حسب النتيجة
+        kpi2.metric("صافي الربح", f"{total_profit:,.0f} ر.س", delta=f"{profit_margin:.1f}% هامش")
+        kpi3.metric("إجمالي التكلفة", f"{total_cost:,.0f} ر.س", delta_color="inverse")
 
         st.markdown("---")
-
+        
+        # الرسوم البيانية
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("📈 المبيعات اليومية")
-            trend = filtered_df.groupby('Date')['Amount'].sum().reset_index()
-            fig = px.line(trend, x='Date', y='Amount', markers=True)
-            st.plotly_chart(fig, use_container_width=True)
+            st.subheader("تحليل الربحية حسب المجموعة")
+            # رسم يوضح أين تأتي أرباحك
+            profit_by_group = filtered_df.groupby('stockgroup')['Profit'].sum().reset_index().sort_values('Profit', ascending=False).head(10)
+            fig_p = px.bar(profit_by_group, x='stockgroup', y='Profit', color='Profit', title="أكثر المجموعات ربحية")
+            st.plotly_chart(fig_p, use_container_width=True)
             
         with c2:
-            st.subheader("🏆 أداء البائعين")
+            st.subheader("أداء البائعين (مبيعات)")
             perf = filtered_df.groupby('SalesMan')['Amount'].sum().reset_index().sort_values('Amount', ascending=False)
-            fig2 = px.bar(perf, x='SalesMan', y='Amount', text_auto='.2s')
+            fig2 = px.bar(perf, x='SalesMan', y='Amount')
             st.plotly_chart(fig2, use_container_width=True)
 
-        # جدول التفاصيل
         st.markdown("---")
-        st.subheader("📦 تفاصيل الأصناف المباعة")
-        st.dataframe(filtered_df[['Date', 'InvoiceNo', 'StockName', 'Qty', 'Amount', 'Profit', 'SalesMan']].sort_values('Date', ascending=False), use_container_width=True)
+        st.subheader("🔍 فحص تفصيلي (للتأكد من التكلفة)")
+        st.dataframe(filtered_df[['Date', 'StockName', 'Qty', 'CostUnit', 'Amount', 'Profit']].head(50), use_container_width=True)
 
     elif df_merged is not None:
-         st.warning("⚠️ لا توجد بيانات للعرض بعد الفلترة.")
+         st.warning("⚠️ لا توجد بيانات.")
 else:
-    st.info("👈 يرجى رفع الملفات.")
+    st.info("👈 ارفع الملفات، ثم جرب تغيير 'عمود التكلفة' من القائمة الجانبية.")
