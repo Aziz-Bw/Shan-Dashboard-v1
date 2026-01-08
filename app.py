@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 🎨 التصميم (CSS) - إصلاح التباين ---
+# --- 🎨 التصميم (CSS) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
@@ -21,7 +21,6 @@ st.markdown("""
         font-family: 'Tajawal', sans-serif;
     }
 
-    /* الألوان الثابتة */
     :root {
         --brand-blue: #034275;
         --card-white: #ffffff;
@@ -31,28 +30,27 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* === 1. صناديق المحتوى (الحل الجذري) === */
-    /* نضع أي نص أو عنوان داخل هذا الصندوق ليظهر بخلفية بيضاء دائماً */
-    .content-box {
-        background-color: var(--card-white) !important;
+    /* الحاويات */
+    .filters-box {
+        background-color: var(--card-white);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-        border-top: 5px solid var(--brand-blue);
-    }
-
-    .content-box h2, .content-box h3, .content-box p, .content-box div {
-        color: #333 !important; /* نص غامق دائماً على خلفية بيضاء */
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        border-top: 4px solid var(--brand-blue);
+        margin-bottom: 25px;
     }
     
-    .content-title {
-        color: var(--brand-blue) !important;
-        font-weight: 800;
-        margin: 0;
+    .content-box {
+        background-color: var(--card-white);
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #eee;
+        text-align: center;
+        margin-bottom: 20px;
     }
 
-    /* === 2. بطاقات المؤشرات (KPIs) === */
+    /* البطاقات */
     .metric-card {
         background-color: var(--card-white) !important;
         border: 1px solid #e0e0e0;
@@ -65,34 +63,12 @@ st.markdown("""
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        transition: transform 0.2s;
     }
-    .metric-card:hover { transform: translateY(-5px); }
-    
-    .metric-label {
-        color: #666 !important;
-        font-size: 13px;
-        font-weight: 700;
-        margin-bottom: 8px;
-        white-space: nowrap;
-    }
-    
-    .metric-value {
-        color: var(--brand-blue) !important;
-        font-size: 20px;
-        font-weight: 800;
-        margin: 0;
-        direction: ltr;
-    }
-    
-    .metric-sub {
-        color: #888 !important;
-        font-size: 11px;
-        margin-top: 8px;
-        font-weight: bold;
-    }
+    .metric-label { color: #666 !important; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .metric-value { color: var(--brand-blue) !important; font-size: 20px; font-weight: 800; direction: ltr; }
+    .metric-sub { color: #888 !important; font-size: 11px; margin-top: 8px; font-weight: bold; }
 
-    /* === 3. بطاقات البائعين === */
+    /* بطاقات البائعين */
     .salesman-box {
         background-color: var(--card-white) !important;
         border-radius: 12px;
@@ -103,33 +79,22 @@ st.markdown("""
         direction: rtl;
         border: 1px solid #eee;
     }
-
-    .s-header {
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-        margin-bottom: 12px;
-        text-align: right;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
     .s-name { color: var(--brand-blue) !important; font-size: 18px; font-weight: 800; }
-    .s-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; direction: rtl; border-bottom: 1px dashed #f5f5f5; padding-bottom: 4px; }
+    .s-row { display: flex; justify-content: space-between; margin-bottom: 8px; direction: rtl; border-bottom: 1px dashed #f5f5f5; padding-bottom: 4px; }
     .s-label { color: #555 !important; font-size: 13px; font-weight: 600; }
     .s-val { color: #333 !important; font-size: 14px; font-weight: 800; font-family: 'Tajawal', sans-serif; }
 
     /* أنيميشن */
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .row-anim { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
-    .d-1 { animation-delay: 0.1s; } .d-2 { animation-delay: 0.3s; } .d-3 { animation-delay: 0.5s; }
-    .d-4 { animation-delay: 0.7s; } .d-5 { animation-delay: 0.9s; }
+    .d-1 { animation-delay: 0.1s; } .d-2 { animation-delay: 0.3s; }
 
 </style>
 """, unsafe_allow_html=True)
 
 # --- 2. إدارة الحالة ---
 if 'uploaded_files' not in st.session_state: st.session_state['uploaded_files'] = None
+if 'ledger_file' not in st.session_state: st.session_state['ledger_file'] = None # ملف التحصيل
 
 # --- 3. المعالجة ---
 def normalize_salesman_name(name):
@@ -197,7 +162,7 @@ def load_sales_data(file_header, file_items):
         return full_data.dropna(subset=['Date'])
     except Exception as e: st.error(f"Error: {e}"); return None
 
-# --- 4. القائمة الجانبية ---
+# --- 4. القائمة الجانبية (ديناميكية) ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=70)
     st.markdown("### شان الحديثة | Shan Modern")
@@ -205,18 +170,23 @@ with st.sidebar:
     
     selected_page = st.radio(
         "القائمة الرئيسية",
-        ["💰 المبيعات (Sales)", "💸 التحصيل (قريباً)"],
-        index=0 # الافتراضي المبيعات
+        ["💰 المبيعات (Sales)", "💸 التحصيل والديون"],
+        index=0
     )
     
     st.markdown("---")
-    st.info("📁 **رفع الملفات المطلوبة**")
     
-    # أسماء الملفات واضحة هنا 👇
-    f1 = st.file_uploader("1. ملف الفواتير (StockInvoiceDetails.xml)", type=['xml'], key="f1")
-    f2 = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems.xml)", type=['xml'], key="f2")
-    
-    if f1 and f2: st.session_state['uploaded_files'] = (f1, f2)
+    # --- تغيير الرفع حسب الصفحة ---
+    if selected_page == "💰 المبيعات (Sales)":
+        st.info("📁 **ملفات المبيعات**")
+        f1 = st.file_uploader("1. StockInvoiceDetails.xml", type=['xml'], key="f1")
+        f2 = st.file_uploader("2. StockInvoiceRowItems.xml", type=['xml'], key="f2")
+        if f1 and f2: st.session_state['uploaded_files'] = (f1, f2)
+        
+    elif selected_page == "💸 التحصيل والديون":
+        st.info("📁 **ملف التحصيل**")
+        f3 = st.file_uploader("3. LedgerBook.xml", type=['xml'], key="f3")
+        if f3: st.session_state['ledger_file'] = f3
 
 # --- 5. صفحة المبيعات ---
 if selected_page == "💰 المبيعات (Sales)":
@@ -295,9 +265,8 @@ if selected_page == "💰 المبيعات (Sales)":
                 s_ret_c = data[data['Amount'] < 0]['TransCode'].nunique()
                 s_inv = data[data['Amount'] > 0]['TransCode'].nunique()
                 border = "#27ae60" if is_total else "#034275"
-                name_col = "#034275"
                 
-                html = f"""<div class="salesman-box" style="border-right: 5px solid {border};"><div class="s-header"><div class="s-name" style="color:{name_col} !important">{name}</div>{'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px; color:#333;">الإجمالي</span>' if is_total else ''}</div><div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net:,.0f}</span></div><div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_prof:,.0f} ({s_marg:.1f}%)</span></div><div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv}</span></div><div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;"><span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span><span class="s-val" style="color:#c0392b !important">{s_ret_v:,.0f} ({s_ret_c})</span></div></div>"""
+                html = f"""<div class="salesman-box" style="border-right: 5px solid {border};"><div class="s-header"><div class="s-name">{name}</div>{'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px; color:#333;">الإجمالي</span>' if is_total else ''}</div><div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net:,.0f}</span></div><div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_prof:,.0f} ({s_marg:.1f}%)</span></div><div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv}</span></div><div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;"><span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span><span class="s-val" style="color:#c0392b !important">{s_ret_v:,.0f} ({s_ret_c})</span></div></div>"""
                 with col: st.markdown(html, unsafe_allow_html=True)
 
             idx = 0
@@ -308,8 +277,9 @@ if selected_page == "💰 المبيعات (Sales)":
             draw_salesman(cols[2], "إجمالي الفريق", df_filtered, is_total=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Charts (Row 5)
-            st.markdown('<div class="row-anim d-5 content-box">', unsafe_allow_html=True)
+            # Charts & Table (omitted for brevity, same as before)
+            st.markdown('<div class="row-anim d-5">', unsafe_allow_html=True)
+            st.markdown("---")
             t1, t2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
             with t1:
                 dly = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
@@ -320,23 +290,16 @@ if selected_page == "💰 المبيعات (Sales)":
                 gp = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
                 fig_pie = px.pie(gp, values='Profit', names='stockgroup', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r)
                 st.plotly_chart(fig_pie, use_container_width=True)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # Table (Row 6)
-            st.markdown('<div class="row-anim d-6">', unsafe_allow_html=True)
-            st.markdown("---")
+            
             c1, c2 = st.columns([3, 1])
             with c1: st.subheader("📦 تقرير المخزون")
-            
             items_sum = df_filtered.groupby(['StockName', 'StockCode', 'stockgroup']).agg(الكمية=('Qty', 'sum'), المبيعات=('Amount', 'sum'), الربح=('Profit', 'sum')).reset_index()
             items_sum['هامش_%'] = (items_sum['الربح'] / items_sum['المبيعات'] * 100).fillna(0)
             items_sum['تصريف_شهري'] = items_sum['الكمية'] / months_diff
             items_sum = items_sum.sort_values('الربح', ascending=False)
-            
             with c2:
                 csv = items_sum.to_csv(index=False).encode('utf-8-sig')
                 st.download_button("📥 تحميل التقرير", data=csv, file_name="Shan_Report.csv", mime="text/csv")
-
             st.dataframe(items_sum, use_container_width=True, height=600)
             st.markdown('</div>', unsafe_allow_html=True)
             
@@ -344,18 +307,24 @@ if selected_page == "💰 المبيعات (Sales)":
         st.warning("⚠️ الرجاء رفع ملفات الفواتير من القائمة الجانبية لعرض المبيعات.")
 
 # ==========================
-# صفحة 2: التحصيل والديون (الصفحة الجديدة)
+# صفحة 2: التحصيل والديون
 # ==========================
-elif selected_page == "💸 التحصيل (قريباً)":
-    # وضعنا المحتوى في صندوق أبيض ليكون ظاهراً
+elif selected_page == "💸 التحصيل والديون":
+    
     st.markdown("""
     <div class="content-box">
         <h2 class="content-title">💸 مراقبة الديون والتحصيل</h2>
-        <p>هذه الصفحة مخصصة لتحليل كشوفات الحساب والديون.</p>
-        <hr>
-        <p style="color:#c0392b;">⚠️ البيانات المطلوبة:</p>
-        <p>لتحليل التحصيل، نحتاج لملف <b>LedgerBook.xml</b>. ملفات الفواتير الحالية لا تحتوي على معلومات السداد.</p>
+        <p>تحليل كشوفات الحساب والعملاء (تحت الإنشاء)</p>
     </div>
     """, unsafe_allow_html=True)
     
-    st.file_uploader("📂 رفع ملف دفتر الأستاذ (قريباً)", disabled=True)
+    # 🔴 الآن الزر مفعل ويعمل!
+    if not st.session_state['ledger_file']:
+        st.warning("⚠️ الرجاء رفع ملف LedgerBook.xml للبدء")
+        f3_main = st.file_uploader("📂 رفع ملف دفتر الأستاذ (LedgerBook.xml)", type=['xml'], key="f3_main")
+        if f3_main:
+            st.session_state['ledger_file'] = f3_main
+            st.success("تم استلام الملف! سنبدأ التحليل في الخطوة القادمة.")
+            st.rerun()
+    else:
+        st.success("✅ ملف التحصيل جاهز! (أخبرني للبدء في تحليل الأعمدة)")
