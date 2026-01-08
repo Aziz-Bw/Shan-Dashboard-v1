@@ -1,120 +1,69 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import xml.etree.ElementTree as ET
 
-# --- 1. إعداد الصفحة ---
-st.set_page_config(page_title="مدير قطع الغيار الذكي", layout="wide", page_icon="⚙️")
-st.markdown("""<style>[data-testid="stMetricValue"] {font-size: 24px; color: #0068c9;}</style>""", unsafe_allow_html=True)
+st.set_page_config(page_title="كاشف التكلفة", layout="wide")
 
-# --- 2. الحماية ---
+# الحماية
 if "password" not in st.session_state: st.session_state["password"] = ""
 if st.session_state["password"] != st.secrets["PASSWORD"]:
-    st.title("🔒 تسجيل الدخول"); password = st.text_input("كلمة المرور", type="password")
+    st.title("🔒"); password = st.text_input("Password", type="password")
     if password == st.secrets["PASSWORD"]: st.session_state["password"] = password; st.rerun()
     else: st.stop()
 
-# --- 3. المعالجة ---
-@st.cache_data(ttl=3600)
-def load_data(file_header, file_items, cost_col_name):
+def load_debug_data(file_header, file_items):
     try:
         tree_h = ET.parse(file_header); df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
         tree_i = ET.parse(file_items); df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
         
-        # 1. فلترة المحذوفات
-        if 'IsDelete' in df_header.columns:
-            df_header = df_header[~df_header['IsDelete'].isin(['True', 'true', '1'])]
-
-        # 2. تنظيف التاريخ
-        df_header['Date'] = pd.to_datetime(pd.to_numeric(df_header['TransDateValue'], errors='coerce'), unit='D', origin='1899-12-30')
+        # 1. فلترة وتجهيز الفواتير (مبيعات ومرتجع فقط)
+        if 'IsDelete' in df_header.columns: df_header = df_header[~df_header['IsDelete'].isin(['True', '1'])]
         
-        # 3. الأرقام (هنا التعديل الجوهري للضريبة)
+        # اختيار الفواتير (نفس الفلتر السابق الناجح)
+        sales_vouchers = [v for v in df_header['VoucherName'].unique() if v and ('Sale' in v or 'Cash' in v or 'Invoice' in v or 'Return' in v or 'مرتجع' in v)]
+        valid_transcodes = df_header[df_header['VoucherName'].isin(sales_vouchers)]['TransCode'].tolist()
+        
+        # فلترة الأصناف بناء على الفواتير المختارة
+        df_items = df_items[df_items['TransCode'].isin(valid_transcodes)]
+        
+        # تجهيز الكمية
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
         
-        # نحاول قراءة المبلغ "بدون ضريبة"
-        if 'TaxbleAmount' in df_items.columns:
-            df_items['Amount'] = pd.to_numeric(df_items['TaxbleAmount'], errors='coerce').fillna(0)
-        elif 'BasicStockAmount' in df_items.columns:
-            df_items['Amount'] = pd.to_numeric(df_items['BasicStockAmount'], errors='coerce').fillna(0)
-        else:
-            # إذا لم نجد أعمدة الصافي، نأخذ الإجمالي ونخصم الضريبة تقريبياً
-            df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0) / 1.15
+        return df_items
+    except Exception as e: st.error(str(e)); return None
 
-        # التكلفة
-        if cost_col_name in df_items.columns: df_items['CostUnit'] = pd.to_numeric(df_items[cost_col_name], errors='coerce').fillna(0)
-        else: df_items['CostUnit'] = 0
-            
-        df_items['TotalCost'] = df_items['CostUnit'] * df_items['Qty']
-        
-        # حذف الأعمدة المكررة
-        cols_to_drop = ['SalesMan', 'VoucherName']
-        for col in cols_to_drop:
-            if col in df_items.columns: df_items = df_items.drop(columns=[col])
+st.title("🕵️‍♂️ كاشف التكلفة المفقودة")
+st.info("نبحث عن عمود يعطينا مجموع يقارب: 1,079,724 (تكلفة البضاعة المباعة)")
 
-        if 'SalesPerson' in df_header.columns: df_header['SalesMan'] = df_header['SalesPerson']
-        else: df_header['SalesMan'] = 'غير محدد'
-
-        # 4. الدمج
-        full_data = pd.merge(df_items, df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'SalesMan', 'VoucherName']], on='TransCode', how='inner')
-        
-        # 🔴 معالجة المرتجعات (السحر هنا)
-        # أي فاتورة فيها كلمة "Return" أو "مرتجع"، نقلب أرقامها للسالب
-        mask_return = full_data['VoucherName'].str.contains('Return|مرتجع', case=False, na=False)
-        full_data.loc[mask_return, 'Amount'] = full_data.loc[mask_return, 'Amount'] * -1
-        full_data.loc[mask_return, 'TotalCost'] = full_data.loc[mask_return, 'TotalCost'] * -1
-        
-        # حساب الربح بعد تعديل المرتجعات
-        full_data['Profit'] = full_data['Amount'] - full_data['TotalCost']
-        
-        return full_data.dropna(subset=['Date'])
-    except Exception as e: st.error(f"Error: {e}"); return None
-
-# --- 4. الواجهة ---
-st.title("📊 مطابقة الأرقام: النسخة المحاسبية")
-with st.sidebar:
-    st.header("📂 البيانات"); f1 = st.file_uploader("ملف الفواتير", type=['xml']); f2 = st.file_uploader("ملف الأصناف", type=['xml'])
-    st.markdown("---"); cost_opt = st.selectbox("مصدر التكلفة", ('CurrentStockRate', 'CostFactor', 'BasicPrice'))
+f1 = st.file_uploader("ملف الفواتير (InvoiceDetails)", type='xml')
+f2 = st.file_uploader("ملف الأصناف (RowItems)", type='xml')
 
 if f1 and f2:
-    df = load_data(f1, f2, cost_opt)
+    df = load_debug_data(f1, f2)
     if df is not None:
+        st.write(f"عدد الأصناف التي يتم تحليلها: {len(df)}")
         
-        st.sidebar.markdown("---")
-        st.sidebar.header("🎯 تصفية نوع السند")
-        all_vouchers = list(df['VoucherName'].unique())
+        results = []
+        # نفحص كل الأعمدة الموجودة في الملف
+        for col in df.columns:
+            # نتجاهل الأعمدة النصية ونركز على الأرقام المحتملة
+            try:
+                # تحويل العمود لرقم
+                numeric_col = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                
+                # تخطي الأعمدة الصفرية أو الصغيرة جداً
+                if numeric_col.sum() == 0: continue
+                
+                # المعادلة: المجموع = الكمية * قيمة العمود
+                total_value = (df['Qty'] * numeric_col).sum()
+                
+                # نحفظ النتيجة
+                results.append({'Column Name': col, 'Total Value (Cost)': total_value})
+            except:
+                continue
+                
+        # عرض النتائج مرتبة
+        res_df = pd.DataFrame(results).sort_values('Total Value (Cost)', ascending=False)
         
-        # الآن نختار المبيعات والمرتجعات معاً
-        default_selection = [v for v in all_vouchers if 'Sale' in str(v) or 'Cash' in str(v) or 'Invoice' in str(v) or 'Return' in str(v) or 'مرتجع' in str(v)]
-        
-        selected_vouchers = st.sidebar.multiselect(
-            "حدد السندات (اختر المبيعات + المرتجعات):",
-            options=all_vouchers,
-            default=default_selection
-        )
-        
-        filtered_df = df[df['VoucherName'].isin(selected_vouchers)]
-        
-        # الفلاتر الزمنية
-        min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
-        c1, c2 = st.columns(2)
-        with c1: d_range = st.date_input("الفترة", [min_d, max_d])
-        with c2: salesman_filter = st.selectbox("البائع", ['الكل'] + list(filtered_df['SalesMan'].unique()))
-
-        if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
-            filtered_df = filtered_df[(filtered_df['Date'].dt.date >= d_range[0]) & (filtered_df['Date'].dt.date <= d_range[1])]
-        if salesman_filter != 'الكل':
-            filtered_df = filtered_df[filtered_df['SalesMan'] == salesman_filter]
-
-        total_sales = filtered_df['Amount'].sum()
-        total_profit = filtered_df['Profit'].sum()
-        
-        st.markdown("### 🔢 النتائج (بدون ضريبة + خصم المرتجعات)")
-        k1, k2, k3 = st.columns(3)
-        k1.metric("صافي المبيعات", f"{total_sales:,.2f}")
-        k2.metric("صافي الربح", f"{total_profit:,.2f}")
-        k3.metric("عدد السندات", len(filtered_df['TransCode'].unique()))
-
-        st.markdown("---")
-        col_g1, col_g2 = st.columns(2)
-        with col_g1: st.plotly_chart(px.line(filtered_df.groupby('Date')['Amount'].sum().reset_index(), x='Date', y='Amount', title="صافي الحركة اليومية"), use_container_width=True)
-        with col_g2: st.plotly_chart(px.bar(filtered_df.groupby('SalesMan')['Amount'].sum().reset_index(), x='SalesMan', y='Amount', title="أداء البائعين"), use_container_width=True)
+        # تنسيق الرقم ليظهر بالفواصل
+        st.dataframe(res_df.style.format({'Total Value (Cost)': '{:,.2f}'}), use_container_width=True)
