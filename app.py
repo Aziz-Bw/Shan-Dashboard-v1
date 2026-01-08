@@ -42,7 +42,7 @@ def load_data(file_header, file_items):
         
         # --- تنظيف البيانات ---
         
-        # 1. التاريخ (استخدام TransDateValue)
+        # 1. التاريخ
         df_header['Date'] = pd.to_datetime(
             pd.to_numeric(df_header['TransDateValue'], errors='coerce'), 
             unit='D', 
@@ -58,11 +58,15 @@ def load_data(file_header, file_items):
         df_items['Cost'] = pd.to_numeric(df_items['CostFactor'], errors='coerce').fillna(0)
         df_items['Profit'] = df_items['Amount'] - (df_items['Cost'] * df_items['Qty'])
 
-        # 3. توحيد اسم البائع (الحل للمشكلة)
-        # إذا كان العمود اسمه SalesPerson نغيره إلى SalesMan لتوحيد العمل
+        # 🔥 حل مشكلة التصادم (الخطوة الجديدة) 🔥
+        # نحذف SalesMan من الأصناف إذا وجد، لنعتمد على الفاتورة فقط
+        if 'SalesMan' in df_items.columns:
+            df_items = df_items.drop(columns=['SalesMan'])
+
+        # توحيد اسم البائع في الفواتير
         if 'SalesPerson' in df_header.columns:
             df_header['SalesMan'] = df_header['SalesPerson']
-        elif 'SalesMan' not in df_header.columns:
+        else:
             df_header['SalesMan'] = 'غير محدد'
 
         # 4. الدمج
