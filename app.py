@@ -7,7 +7,6 @@ import xml.etree.ElementTree as ET
 # --- 1. إعداد الصفحة والتصميم ---
 st.set_page_config(page_title="مدير قطع الغيار الذكي", layout="wide", page_icon="⚙️")
 
-# تصميم CSS لتحسين مظهر الأرقام
 st.markdown("""
 <style>
     [data-testid="stMetricValue"] {
@@ -34,18 +33,16 @@ if st.session_state["password"] != st.secrets["PASSWORD"]:
 @st.cache_data(ttl=3600)
 def load_data(file_header, file_items):
     try:
-        # قراءة ملف الفواتير
+        # قراءة الملفات
         tree_h = ET.parse(file_header)
         df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
         
-        # قراءة ملف الأصناف
         tree_i = ET.parse(file_items)
         df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
         
         # --- تنظيف البيانات ---
         
-        # 1. إصلاح التاريخ (الحل السحري باستخدام TransDateValue)
-        # الرقم 45538 هو نظام إكسل، يبدأ العد من 30-12-1899
+        # 1. التاريخ (استخدام TransDateValue)
         df_header['Date'] = pd.to_datetime(
             pd.to_numeric(df_header['TransDateValue'], errors='coerce'), 
             unit='D', 
@@ -54,27 +51,29 @@ def load_data(file_header, file_items):
         
         # تنظيف الأرقام
         df_header['GrandTotal'] = pd.to_numeric(df_header['InvoiceTotal'], errors='coerce').fillna(0)
-        df_header['TaxTotal'] = pd.to_numeric(df_header['taxtotal'], errors='coerce').fillna(0)
         
         # 2. تنظيف الأصناف
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
         df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0)
         df_items['Cost'] = pd.to_numeric(df_items['CostFactor'], errors='coerce').fillna(0)
-        
-        # حساب الربح
         df_items['Profit'] = df_items['Amount'] - (df_items['Cost'] * df_items['Qty'])
 
-        # 3. الدمج
+        # 3. توحيد اسم البائع (الحل للمشكلة)
+        # إذا كان العمود اسمه SalesPerson نغيره إلى SalesMan لتوحيد العمل
+        if 'SalesPerson' in df_header.columns:
+            df_header['SalesMan'] = df_header['SalesPerson']
+        elif 'SalesMan' not in df_header.columns:
+            df_header['SalesMan'] = 'غير محدد'
+
+        # 4. الدمج
         full_data = pd.merge(
             df_items, 
             df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'SalesMan']], 
             on='TransCode', 
-            how='inner' # نستخدم inner لنضمن أن كل صنف له فاتورة وتاريخ
+            how='inner'
         )
         
-        # حذف أي صفوف ليس لها تاريخ صحيح
         full_data = full_data.dropna(subset=['Date'])
-        
         return full_data
         
     except Exception as e:
@@ -102,7 +101,6 @@ if uploaded_header and uploaded_items:
         # --- الفلاتر ---
         col_fil1, col_fil2, col_fil3 = st.columns(3)
         with col_fil1:
-            # التأكد من وجود تواريخ صالحة قبل إنشاء الفلتر
             min_date = df_merged['Date'].min().date()
             max_date = df_merged['Date'].max().date()
             date_range = st.date_input("الفترة الزمنية", [min_date, max_date])
@@ -118,13 +116,7 @@ if uploaded_header and uploaded_items:
         # تطبيق الفلاتر
         filtered_df = df_merged.copy()
         
-        # فلتر التاريخ (حماية من الأخطاء)
-        if isinstance(date_range, tuple) and len(date_range) == 2:
-             filtered_df = filtered_df[
-                (filtered_df['Date'].dt.date >= date_range[0]) & 
-                (filtered_df['Date'].dt.date <= date_range[1])
-            ]
-        elif isinstance(date_range, list) and len(date_range) == 2: # أحياناً يرجع قائمة
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
              filtered_df = filtered_df[
                 (filtered_df['Date'].dt.date >= date_range[0]) & 
                 (filtered_df['Date'].dt.date <= date_range[1])
@@ -136,73 +128,40 @@ if uploaded_header and uploaded_items:
         if selected_group != 'الكل':
             filtered_df = filtered_df[filtered_df['stockgroup'] == selected_group]
 
-        # --- مؤشرات الأداء ---
+        # --- المؤشرات والرسوم ---
         st.markdown("### 📌 نظرة عامة مالية")
         
         total_sales = filtered_df['Amount'].sum()
         total_profit = filtered_df['Profit'].sum()
         total_cost = (filtered_df['Cost'] * filtered_df['Qty']).sum()
         profit_margin = (total_profit / total_sales * 100) if total_sales > 0 else 0
-        total_inv_count = filtered_df['TransCode'].nunique()
-
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        kpi1.metric("إجمالي المبيعات", f"{total_sales:,.0f} ر.س", delta="الإيرادات")
-        kpi2.metric("إجمالي الربح التقديري", f"{total_profit:,.0f} ر.س", delta=f"{profit_margin:.1f}% هامش ربح")
-        kpi3.metric("قيمة التكلفة", f"{total_cost:,.0f} ر.س", delta="تكلفة البضاعة", delta_color="inverse")
-        kpi4.metric("عدد الفواتير", f"{total_inv_count}", delta="حركة")
+        
+        kpi1, kpi2, kpi3 = st.columns(3)
+        kpi1.metric("إجمالي المبيعات", f"{total_sales:,.0f} ر.س")
+        kpi2.metric("الربح التقديري", f"{total_profit:,.0f} ر.س", delta=f"{profit_margin:.1f}%")
+        kpi3.metric("التكلفة", f"{total_cost:,.0f} ر.س")
 
         st.markdown("---")
 
-        # --- الرسوم البيانية ---
-        chart_row1_1, chart_row1_2 = st.columns(2)
-        
-        with chart_row1_1:
-            st.subheader("📈 نمو المبيعات (يومياً)")
-            sales_trend = filtered_df.groupby('Date')['Amount'].sum().reset_index()
-            fig_trend = px.line(sales_trend, x='Date', y='Amount', markers=True)
-            st.plotly_chart(fig_trend, use_container_width=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("📈 المبيعات اليومية")
+            trend = filtered_df.groupby('Date')['Amount'].sum().reset_index()
+            fig = px.line(trend, x='Date', y='Amount', markers=True)
+            st.plotly_chart(fig, use_container_width=True)
             
-        with chart_row1_2:
-            st.subheader("📦 أفضل المجموعات مبيعاً")
-            group_sales = filtered_df.groupby('stockgroup')['Amount'].sum().reset_index().sort_values('Amount', ascending=False).head(7)
-            fig_pie = px.pie(group_sales, values='Amount', names='stockgroup', hole=0.4)
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        chart_row2_1, chart_row2_2 = st.columns(2)
-        
-        with chart_row2_1:
+        with c2:
             st.subheader("🏆 أداء البائعين")
-            salesman_perf = filtered_df.groupby('SalesMan')['Amount'].sum().reset_index().sort_values('Amount', ascending=False)
-            fig_bar = px.bar(salesman_perf, x='SalesMan', y='Amount', text_auto='.2s', color='Amount')
-            st.plotly_chart(fig_bar, use_container_width=True)
-            
-        with chart_row2_2:
-            st.subheader("👥 كبار العملاء")
-            top_customers = filtered_df.groupby('LedgerName')['Amount'].sum().reset_index().sort_values('Amount', ascending=False).head(10)
-            fig_cust = px.bar(top_customers, y='LedgerName', x='Amount', orientation='h', text_auto='.2s')
-            fig_cust.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig_cust, use_container_width=True)
+            perf = filtered_df.groupby('SalesMan')['Amount'].sum().reset_index().sort_values('Amount', ascending=False)
+            fig2 = px.bar(perf, x='SalesMan', y='Amount', text_auto='.2s')
+            st.plotly_chart(fig2, use_container_width=True)
 
-        # --- الجداول ---
+        # جدول التفاصيل
         st.markdown("---")
-        col_tbl1, col_tbl2 = st.columns(2)
-        
-        with col_tbl1:
-            st.subheader("📦 الأصناف الأكثر مبيعاً")
-            top_items = filtered_df.groupby(['StockName', 'stockgroup'])[['Qty', 'Amount']].sum().reset_index().sort_values('Qty', ascending=False).head(10)
-            st.dataframe(top_items, use_container_width=True)
-            
-        with col_tbl2:
-            st.subheader("⚠️ أصناف منخفضة الربحية")
-            low_margin = filtered_df.groupby('StockName')[['Amount', 'Profit']].sum().reset_index()
-            low_margin = low_margin[low_margin['Profit'] <= 0].sort_values('Profit')
-            if not low_margin.empty:
-                st.dataframe(low_margin.head(10), use_container_width=True)
-            else:
-                st.success("ممتاز! لا توجد أصناف خاسرة.")
+        st.subheader("📦 تفاصيل الأصناف المباعة")
+        st.dataframe(filtered_df[['Date', 'InvoiceNo', 'StockName', 'Qty', 'Amount', 'Profit', 'SalesMan']].sort_values('Date', ascending=False), use_container_width=True)
 
     elif df_merged is not None:
-        st.warning("⚠️ الملفات سليمة ولكن لم نجد بيانات تواريخ صالحة. تأكد أن الملفات تحتوي على بيانات.")
-
+         st.warning("⚠️ لا توجد بيانات للعرض بعد الفلترة.")
 else:
-    st.info("👈 ابدأ برفع ملفات الفواتير والأصناف.")
+    st.info("👈 يرجى رفع الملفات.")
