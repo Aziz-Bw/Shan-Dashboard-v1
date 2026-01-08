@@ -22,7 +22,24 @@ if st.session_state["password"] != st.secrets["PASSWORD"]:
     if password == st.secrets["PASSWORD"]: st.session_state["password"] = password; st.rerun()
     else: st.stop()
 
-# --- 3. المعالجة الآلية (بدون فلاتر يدوية) ---
+# --- دالة تنظيف أسماء البائعين (جديد) ---
+def normalize_salesman_name(name):
+    if pd.isna(name) or name == 'nan' or name == 'غير محدد':
+        return 'غير محدد'
+    
+    name = str(name).strip()
+    
+    # توحيد "سعيد" و "السعيد"
+    if 'سعيد' in name:
+        return 'سعيد'
+    
+    # توحيد "عبد الله" و "عبدالله"
+    if 'عبد' in name and 'الله' in name:
+        return 'عبد الله'
+        
+    return name
+
+# --- 3. المعالجة الآلية ---
 @st.cache_data(ttl=3600)
 def load_auto_data(file_header, file_items):
     try:
@@ -34,34 +51,28 @@ def load_auto_data(file_header, file_items):
         if 'IsDelete' in df_header.columns:
             df_header = df_header[~df_header['IsDelete'].isin(['True', 'true', '1'])]
 
-        # 2. الفرز الآلي للسندات (العقل المدبر) 🧠
-        # نحدد الكلمات الدلالية للمبيعات والمرتجعات
+        # 2. الفرز الآلي للسندات
         sales_keywords = ['بيع', 'Sale', 'Invoice', 'Cash', 'Credit']
         exclude_keywords = ['شراء', 'Purchase', 'Quot', 'عرض', 'Order', 'طلب']
         
-        # دالة صغيرة لفحص نوع السند
         def classify_voucher(v_name):
             v_str = str(v_name).lower()
-            # أولاً: استبعاد المشتريات وعروض الأسعار
-            if any(x.lower() in v_str for x in exclude_keywords):
-                return 'Ignore'
-            # ثانياً: قبول المبيعات والمرتجعات
-            if any(x.lower() in v_str for x in sales_keywords):
-                return 'Keep'
+            if any(x.lower() in v_str for x in exclude_keywords): return 'Ignore'
+            if any(x.lower() in v_str for x in sales_keywords): return 'Keep'
             return 'Ignore'
 
-        # تطبيق الفلتر على الفواتير
         df_header['Action'] = df_header['VoucherName'].apply(classify_voucher)
         df_header = df_header[df_header['Action'] == 'Keep']
 
-        # 3. تنظيف البيانات
+        # 3. تنظيف التاريخ
         df_header['Date'] = pd.to_datetime(pd.to_numeric(df_header['TransDateValue'], errors='coerce'), unit='D', origin='1899-12-30')
         
-        # توحيد اسم البائع (إجباري نص)
-        if 'SalesPerson' in df_header.columns: 
-            df_header['SalesMan'] = df_header['SalesPerson'].fillna('غير محدد').astype(str)
-        else: 
-            df_header['SalesMan'] = 'غير محدد'
+        # --- معالجة البائع (التحسين الجديد) ---
+        # نجهز اسم البائع في الفاتورة
+        if 'SalesPerson' in df_header.columns:
+            df_header['Header_SalesMan'] = df_header['SalesPerson'].fillna('')
+        else:
+            df_header['Header_SalesMan'] = ''
 
         # 4. معالجة الأصناف
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
@@ -74,7 +85,7 @@ def load_auto_data(file_header, file_items):
         else:
             df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0) / 1.15
 
-        # التكلفة (PresetRate) - مثبتة
+        # التكلفة (PresetRate)
         cost_col = 'PresetRate'
         if cost_col in df_items.columns:
             df_items['CostUnit'] = pd.to_numeric(df_items[cost_col], errors='coerce').fillna(0)
@@ -85,16 +96,25 @@ def load_auto_data(file_header, file_items):
             
         df_items['TotalCost'] = df_items['CostUnit'] * df_items['Qty']
         
-        # حذف الأعمدة المكررة
-        cols_to_drop = ['SalesMan', 'VoucherName', 'SalesPerson', 'Action']
+        # تنظيف الأعمدة المكررة ما عدا SalesMan في الأصناف
+        cols_to_drop = ['VoucherName', 'SalesPerson', 'Action'] # أزلنا SalesMan من هنا لنحتفظ به
         for col in cols_to_drop:
             if col in df_items.columns: df_items = df_items.drop(columns=[col])
 
         # 5. الدمج
-        full_data = pd.merge(df_items, df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'SalesMan', 'VoucherName']], on='TransCode', how='inner')
+        full_data = pd.merge(df_items, df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'Header_SalesMan', 'VoucherName']], on='TransCode', how='inner')
         
-        # 6. منطق المرتجعات الآلي
-        # إذا كان السند يحتوي "مرتجع" أو "Return" -> اقلب الإشارة
+        # --- المنطق الذكي لاسم البائع ---
+        # إذا وجدنا اسم في ملف الأصناف نأخذه، وإلا نأخذ من الفاتورة
+        if 'SalesMan' in full_data.columns:
+            full_data['Final_SalesMan'] = full_data['SalesMan'].fillna(full_data['Header_SalesMan'])
+        else:
+            full_data['Final_SalesMan'] = full_data['Header_SalesMan']
+            
+        # تطبيق التوحيد (سعيد = السعيد)
+        full_data['SalesMan_Clean'] = full_data['Final_SalesMan'].apply(normalize_salesman_name)
+
+        # 6. المرتجعات
         mask_return = full_data['VoucherName'].str.contains('Return|مرتجع', case=False, na=False)
         full_data.loc[mask_return, 'Amount'] = full_data.loc[mask_return, 'Amount'] * -1
         full_data.loc[mask_return, 'TotalCost'] = full_data.loc[mask_return, 'TotalCost'] * -1
@@ -107,8 +127,8 @@ def load_auto_data(file_header, file_items):
     except Exception as e: st.error(f"خطأ فني: {e}"); return None
 
 # --- 4. الواجهة ---
-st.title("🚀 لوحة القيادة الآلية")
-st.caption("تم ضبط الإعدادات تلقائياً: (صافي المبيعات - المرتجعات) | التكلفة: PresetRate")
+st.title("🚀 لوحة القيادة الآلية (إصلاح البائعين)")
+st.caption("تم ضبط الأسماء: (سعيد + السعيد) | (عبدالله + عبد الله)")
 
 with st.sidebar:
     st.header("📂 الملفات")
@@ -116,27 +136,25 @@ with st.sidebar:
     f2 = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems)", type=['xml'])
 
 if f1 and f2:
-    # تشغيل المعالج الآلي
     df = load_auto_data(f1, f2)
     
     if df is not None:
-        # فلاتر العرض فقط (تاريخ وبائع)
+        # الفلاتر
         st.sidebar.markdown("---")
         min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
         c1, c2 = st.columns(2)
         with c1: d_range = st.date_input("📅 الفترة", [min_d, max_d])
         with c2: 
-            # إصلاح الخطأ السابق هنا (تحويل القائمة لنصوص)
-            salesman_list = ['الكل'] + sorted(list(df['SalesMan'].astype(str).unique()))
+            # استخدام الاسم المنظف
+            salesman_list = ['الكل'] + sorted(list(df['SalesMan_Clean'].astype(str).unique()))
             salesman_filter = st.selectbox("👤 البائع", salesman_list)
 
-        # تطبيق فلاتر العرض
         df_filtered = df.copy()
         if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
             df_filtered = df_filtered[(df_filtered['Date'].dt.date >= d_range[0]) & (df_filtered['Date'].dt.date <= d_range[1])]
         
         if salesman_filter != 'الكل':
-            df_filtered = df_filtered[df_filtered['SalesMan'] == salesman_filter]
+            df_filtered = df_filtered[df_filtered['SalesMan_Clean'] == salesman_filter]
 
         st.markdown("---")
 
@@ -162,8 +180,9 @@ if f1 and f2:
             st.plotly_chart(px.line(daily_data, x='Date', y=['Amount', 'Profit'], markers=True), use_container_width=True)
             
         with tab2:
-            salesman_perf = df_filtered.groupby('SalesMan')[['Amount', 'Profit']].sum().reset_index().sort_values('Amount', ascending=False)
-            st.plotly_chart(px.bar(salesman_perf, x='SalesMan', y=['Amount', 'Profit'], barmode='group', text_auto='.2s'), use_container_width=True)
+            # الرسم البياني يستخدم الاسم النظيف الآن
+            salesman_perf = df_filtered.groupby('SalesMan_Clean')[['Amount', 'Profit']].sum().reset_index().sort_values('Amount', ascending=False)
+            st.plotly_chart(px.bar(salesman_perf, x='SalesMan_Clean', y=['Amount', 'Profit'], barmode='group', text_auto='.2s'), use_container_width=True)
             
         with tab3:
             group_perf = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
@@ -182,4 +201,4 @@ if f1 and f2:
             st.dataframe(top_profit.style.format({'Profit': '{:,.0f}', 'Amount': '{:,.0f}'}).background_gradient(subset=['Profit'], cmap='Greens'), use_container_width=True)
 
 else:
-    st.info("👈 ارفع الملفات فقط، والباقي علي!")
+    st.info("👈 ارفع الملفات.. وتمتع بالأرقام الصحيحة!")
