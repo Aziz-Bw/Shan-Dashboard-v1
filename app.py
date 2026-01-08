@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 🎨 التصميم (CSS - الإصلاح النهائي للألوان) ---
+# --- 🎨 التصميم (CSS - إصلاح الألوان والتباين) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
@@ -39,6 +39,7 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 
+    /* إجبار كل النصوص داخل الكروت لتكون غامقة */
     .content-box *, .metric-card *, .salesman-box *, .filters-box * {
         color: #333333 !important;
     }
@@ -48,7 +49,7 @@ st.markdown("""
     .metric-value {
         color: #034275 !important; font-size: 22px !important; font-weight: 900 !important; direction: ltr;
     }
-    .metric-sub { color: #666 !important; font-size: 11px !important; }
+    .metric-sub { color: #666 !important; font-size: 11px !important; font-weight: bold; }
     .s-name { color: #034275 !important; font-size: 18px !important; font-weight: 800 !important; }
     
     .s-row {
@@ -64,7 +65,6 @@ st.markdown("""
 # --- 2. إدارة الحالة ---
 if 'uploaded_files' not in st.session_state: st.session_state['uploaded_files'] = None
 if 'ledger_file' not in st.session_state: st.session_state['ledger_file'] = None
-if 'customer_file' not in st.session_state: st.session_state['customer_file'] = None
 
 # --- 3. المعالجة ---
 def normalize_salesman_name(name):
@@ -73,10 +73,6 @@ def normalize_salesman_name(name):
     if 'سعيد' in name: return 'سعيد'
     if 'عبد' in name and 'الله' in name: return 'عبد الله'
     return name
-
-def normalize_name(name):
-    if pd.isna(name): return ""
-    return str(name).strip()
 
 @st.cache_data(ttl=3600)
 def load_sales_data(file_header, file_items):
@@ -100,7 +96,7 @@ def load_sales_data(file_header, file_items):
         df_header = df_header[df_header['Action'] == 'Keep']
         df_header['Date'] = pd.to_datetime(pd.to_numeric(df_header['TransDateValue'], errors='coerce'), unit='D', origin='1899-12-30')
         
-        if 'SalesPerson' in df_header.columns: df_header['Header_SalesMan'] = df_header['SalesPerson'].fillna('')
+        if 'SalesPerson' in df_header.columns: df_header['Header_SalesMan'] = df_header['Header_SalesMan'] = df_header['SalesPerson'].fillna('')
         else: df_header['Header_SalesMan'] = ''
 
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
@@ -168,13 +164,8 @@ with st.sidebar:
         
     elif selected_page == "💸 التحصيل والديون":
         st.info("📁 **ملفات التحصيل**")
-        f3 = st.file_uploader("1. دفتر الأستاذ (LedgerBook.xml)", type=['xml'], key="f3")
+        f3 = st.file_uploader("1. LedgerBook.xml", type=['xml'], key="f3")
         if f3: st.session_state['ledger_file'] = f3
-        
-        st.markdown("---")
-        st.markdown("**تصفية العملاء (اختياري)**")
-        f4 = st.file_uploader("2. قائمة العملاء (Excel)", type=['xlsx'], key="f4")
-        if f4: st.session_state['customer_file'] = f4
 
 # --- 5. الصفحة: المبيعات ---
 if selected_page == "💰 المبيعات (Sales)":
@@ -276,7 +267,7 @@ elif selected_page == "💸 التحصيل والديون":
     st.markdown("""
     <div class="content-box">
         <h2 class="content-title">💸 مراقبة الديون والتحصيل</h2>
-        <p>تحليل الأرصدة المستحقة (مع تصفية العملاء)</p>
+        <p>تحليل الأرصدة المستحقة (للحسابات التي تبدأ بـ 113 أو 221)</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -284,26 +275,81 @@ elif selected_page == "💸 التحصيل والديون":
         df_ledger = inspect_ledger_file(st.session_state['ledger_file'])
         
         if df_ledger is not None:
-            # --- كود الفحص وكشف الأعمدة ---
-            st.success("✅ تم قراءة الملف بنجاح.")
+            # معالجة الأرقام
+            df_ledger['Dr'] = pd.to_numeric(df_ledger['Dr'], errors='coerce').fillna(0)
+            df_ledger['Cr'] = pd.to_numeric(df_ledger['Cr'], errors='coerce').fillna(0)
             
-            st.subheader("🕵️‍♂️ كاشف هيكلية البيانات")
-            st.info("نحتاج لمعرفة أسماء الأعمدة الدقيقة لربطها.")
-            
-            # عرض الأعمدة
-            st.write("**قائمة الأعمدة الموجودة:**")
-            st.write(list(df_ledger.columns))
-            
-            # عرض عينة
-            st.write("**عينة من البيانات:**")
-            st.dataframe(df_ledger.head(10))
-            
-            # محاولة البحث عن مفاتيح التصنيف
-            potential_groups = [col for col in df_ledger.columns if 'group' in col.lower() or 'type' in col.lower()]
-            if potential_groups:
-                st.write("**أعمدة قد تحتوي على التصنيف:**", potential_groups)
-                for col in potential_groups:
-                    st.write(f"القيم في {col}:", df_ledger[col].unique())
+            # 🔍 الفلترة الذهبية (رقم الحساب يبدأ بـ 113 أو 221)
+            # AcLedger هو العمود المتوقع لرقم الحساب
+            if 'AcLedger' in df_ledger.columns:
+                # نحول العمود لنص وننظفه
+                df_ledger['AcLedger_Str'] = df_ledger['AcLedger'].astype(str).str.split('.').str[0]
+                
+                # شرط الفلترة
+                # Startswith تقبل tuple ('113', '221')
+                customers_only = df_ledger[df_ledger['AcLedger_Str'].str.startswith(('113', '221'))]
+                
+                if not customers_only.empty:
+                    # تجميع البيانات للعملاء المفلترين فقط
+                    customers_summary = customers_only.groupby(['LedgerName', 'AcLedger_Str']).agg(
+                        Total_Debit=('Dr', 'sum'),
+                        Total_Credit=('Cr', 'sum'),
+                        Transactions=('TransCode', 'count')
+                    ).reset_index()
                     
+                    customers_summary['Balance'] = customers_summary['Total_Debit'] - customers_summary['Total_Credit']
+                    
+                    # عرض الديون الموجبة فقط (أكبر من 1 ريال)
+                    debtors = customers_summary[customers_summary['Balance'] > 1].sort_values('Balance', ascending=False)
+                    
+                    # KPIs
+                    total_debt = debtors['Balance'].sum()
+                    total_collected = debtors['Total_Credit'].sum()
+                    collection_rate = (total_collected / (total_collected + total_debt) * 100) if total_debt > 0 else 0
+                    debtors_count = debtors['LedgerName'].nunique()
+                    
+                    k1, k2, k3, k4 = st.columns(4)
+                    def metric_card(title, value, sub, color="#034275"):
+                        return f"""<div class="metric-card"><div class="metric-label">{title}</div><div class="metric-value" style="color: {color} !important;">{value}</div><div class="metric-sub">{sub}</div></div>"""
+
+                    with k1: st.markdown(metric_card("إجمالي الديون (لكم)", f"{total_debt:,.0f}", "رصيد قائم", "#c0392b"), unsafe_allow_html=True)
+                    with k2: st.markdown(metric_card("إجمالي التحصيل", f"{total_collected:,.0f}", "مقبوضات", "#27ae60"), unsafe_allow_html=True)
+                    with k3: st.markdown(metric_card("نسبة التحصيل", f"{collection_rate:.1f}%", "معدل السداد"), unsafe_allow_html=True)
+                    with k4: st.markdown(metric_card("عدد العملاء المدينين", f"{debtors_count}", "حساب نشط"), unsafe_allow_html=True)
+                    
+                    st.markdown("---")
+                    
+                    c1, c2 = st.columns([2, 1])
+                    with c1:
+                        st.subheader("📊 أعلى 10 مديونيات")
+                        fig = px.bar(debtors.head(10), x='LedgerName', y='Balance', text_auto='.2s', color='Balance', color_continuous_scale='Reds')
+                        fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(color="black"))
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                    with c2:
+                        st.subheader("توزيع الديون")
+                        def cat_debt(amt): return '> 50k' if amt > 50000 else ('> 10k' if amt > 10000 else '< 10k')
+                        debtors['Cat'] = debtors['Balance'].apply(cat_debt)
+                        fig_pie = px.pie(debtors, values='Balance', names='Cat', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                        st.plotly_chart(fig_pie, use_container_width=True)
+
+                    st.markdown("### 📋 كشف الأرصدة التفصيلي")
+                    st.dataframe(
+                        debtors[['AcLedger_Str', 'LedgerName', 'Total_Debit', 'Total_Credit', 'Balance']],
+                        column_config={
+                            "AcLedger_Str": "رقم الحساب",
+                            "LedgerName": "العميل",
+                            "Total_Debit": st.column_config.NumberColumn("مسحوبات", format="%d"),
+                            "Total_Credit": st.column_config.NumberColumn("سداد", format="%d"),
+                            "Balance": st.column_config.NumberColumn("الرصيد (دين)", format="%d")
+                        },
+                        use_container_width=True,
+                        height=600
+                    )
+                else:
+                    st.warning("لم يتم العثور على حسابات تبدأ بـ 113 أو 221 في الملف.")
+            else:
+                st.error("لم نتمكن من العثور على عمود 'AcLedger' في الملف. الرجاء التأكد من صحة الملف.")
+            
     else:
         st.warning("⚠️ الرجاء رفع ملف LedgerBook.xml من القائمة الجانبية.")
