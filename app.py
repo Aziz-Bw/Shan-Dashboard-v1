@@ -47,10 +47,10 @@ st.markdown("""
         background-color: var(--card-bg) !important;
         border: 1px solid #e0e0e0;
         border-radius: 10px;
-        padding: 15px 5px; /* تقليل الحواف الجانبية */
+        padding: 15px 2px; /* تقليل الحواف الجانبية */
         text-align: center;
         box-shadow: 0 3px 6px rgba(0,0,0,0.05);
-        height: 150px;
+        height: 160px; /* زيادة الارتفاع قليلاً */
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -63,13 +63,13 @@ st.markdown("""
         color: #666 !important;
         font-size: 13px;
         font-weight: 700;
-        margin-bottom: 5px;
-        white-space: nowrap; /* منع التفاف النص */
+        margin-bottom: 8px;
+        white-space: nowrap;
     }
     
     .metric-value {
         color: var(--brand-blue) !important;
-        font-size: 22px; /* تصغير الخط قليلاً ليسع 6 كروت */
+        font-size: 20px; /* ضبط الحجم ليناسب 7 كروت */
         font-weight: 800;
         margin: 0;
         direction: ltr;
@@ -78,7 +78,7 @@ st.markdown("""
     .metric-sub {
         color: #888 !important;
         font-size: 11px;
-        margin-top: 5px;
+        margin-top: 8px;
         font-weight: bold;
     }
 
@@ -115,10 +115,9 @@ st.markdown("""
         align-items: center;
         margin-bottom: 8px;
         direction: rtl;
-        border-bottom: 1px dashed #f5f5f5; /* خط خفيف بين الأسطر */
+        border-bottom: 1px dashed #f5f5f5;
         padding-bottom: 4px;
     }
-    .s-row:last-child { border-bottom: none; }
     
     .s-label { color: #555 !important; font-size: 13px; font-weight: 600; }
     .s-val { color: #333 !important; font-size: 14px; font-weight: 800; font-family: 'Tajawal', sans-serif; }
@@ -255,7 +254,7 @@ elif st.session_state['page'] == 'dashboard':
     df = load_auto_data(f1, f2)
     
     if df is not None:
-        # Header Row (Lego 1)
+        # Header Row
         st.markdown('<div class="row-anim d-1">', unsafe_allow_html=True)
         h1, h2 = st.columns([8, 1])
         with h1:
@@ -268,64 +267,66 @@ elif st.session_state['page'] == 'dashboard':
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Filters (Lego 2)
+        # Filters
         st.markdown('<div class="row-anim d-2 filters-box">', unsafe_allow_html=True)
         min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
         fc1, fc2 = st.columns(2)
         with fc1: d_range = st.date_input("📅 الفترة الزمنية", [min_d, max_d])
         with fc2:
             s_list = ['الكل'] + sorted(list(df['SalesMan_Clean'].astype(str).unique()))
-            s_filter = st.selectbox("👤 الموظف المسؤول", s_list)
+            s_filter = st.selectbox("👤 موظف المبيعات", s_list) # تم التعديل
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Apply Filters
+        # Filter Logic
         df_filtered = df.copy()
         if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
             df_filtered = df_filtered[(df_filtered['Date'].dt.date >= d_range[0]) & (df_filtered['Date'].dt.date <= d_range[1])]
         if s_filter != 'الكل':
             df_filtered = df_filtered[df_filtered['SalesMan_Clean'] == s_filter]
 
-        # Calculate KPIs
+        # KPIs Calculation
         net_sales = df_filtered['Amount'].sum()
         total_cost = df_filtered['TotalCost'].sum()
         total_profit = df_filtered['Profit'].sum()
         
-        # المرتجعات (قيمة وعدد)
         returns_data = df_filtered[df_filtered['Amount'] < 0]
         returns_val = abs(returns_data['Amount'].sum())
         returns_count = returns_data['TransCode'].nunique()
         
-        # عدد الفواتير (فقط المبيعات الموجبة)
         invoices_count = df_filtered[df_filtered['Amount'] > 0]['TransCode'].nunique()
         
         margin = (total_profit / net_sales * 100) if net_sales > 0 else 0
         days_diff = (d_range[1] - d_range[0]).days if isinstance(d_range, (list, tuple)) and len(d_range) == 2 else 1
         months_diff = max(days_diff / 30, 1)
 
-        # KPIs Row (Lego 3) - توسيع لـ 6 أعمدة
+        # KPIs Cards (Row 3) - توسيع لـ 7 أعمدة
         st.markdown('<div class="row-anim d-3">', unsafe_allow_html=True)
-        k1, k2, k3, k4, k5, k6 = st.columns(6)
+        k1, k2, k3, k4, k5, k6, k7 = st.columns(7)
         
         def metric_card(title, value, sub, color="#034275"):
             return f"""
-            <div class="metric-card">
-                <div class="metric-label">{title}</div>
-                <div class="metric-value" style="color: {color} !important;">{value}</div>
-                <div class="metric-sub">{sub}</div>
-            </div>
-            """
+<div class="metric-card">
+    <div class="metric-label">{title}</div>
+    <div class="metric-value" style="color: {color} !important;">{value}</div>
+    <div class="metric-sub">{sub}</div>
+</div>
+"""
 
         with k1: st.markdown(metric_card("صافي المبيعات", f"{net_sales:,.0f}", "الإيراد الفعلي"), unsafe_allow_html=True)
         with k2: st.markdown(metric_card("صافي الربح", f"{total_profit:,.0f}", f"{margin:.1f}% هامش", "#27ae60"), unsafe_allow_html=True)
-        with k3: st.markdown(metric_card("تكلفة البضاعة", f"{total_cost:,.0f}", "Cost"), unsafe_allow_html=True)
-        with k4: st.markdown(metric_card("الإرجاعات", f"{returns_val:,.0f}", f"عدد: {returns_count}", "#c0392b"), unsafe_allow_html=True)
+        # تم تعديل العنوان هنا
+        with k3: st.markdown(metric_card("تكلفة البضاعة", f"{total_cost:,.0f}", "تكلفة البضاعة المباعة للفترة"), unsafe_allow_html=True)
+        # تم تعديل النص هنا
+        with k4: st.markdown(metric_card("الإرجاعات", f"{returns_val:,.0f}", f"عدد: {returns_count} مرتجع", "#c0392b"), unsafe_allow_html=True)
         with k5: st.markdown(metric_card("عدد الفواتير", f"{invoices_count}", "فاتورة مبيعات"), unsafe_allow_html=True)
-        with k6: st.markdown(metric_card("متوسط المبيعات", f"{net_sales/months_diff:,.0f}", "للفترة (شهرياً)"), unsafe_allow_html=True)
+        with k6: st.markdown(metric_card("متوسط المبيعات", f"{net_sales/months_diff:,.0f}", "شهرياً"), unsafe_allow_html=True)
+        # البطاقة السابعة الجديدة
+        with k7: st.markdown(metric_card("متوسط الربح", f"{total_profit/months_diff:,.0f}", f"شهرياً ({margin:.1f}%)", "#27ae60"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Salesmen Row (Lego 4)
+        # Salesmen Cards (Row 4)
         st.markdown('<div class="row-anim d-4">', unsafe_allow_html=True)
         st.subheader("👥 أداء الفريق")
         
@@ -337,36 +338,30 @@ elif st.session_state['page'] == 'dashboard':
             s_profit = data['Profit'].sum()
             s_margin = (s_profit / s_net_sales * 100) if s_net_sales > 0 else 0
             
-            # تفاصيل المرتجعات
             s_ret_data = data[data['Amount'] < 0]
             s_ret_val = abs(s_ret_data['Amount'].sum())
             s_ret_count = s_ret_data['TransCode'].nunique()
             
-            # تفاصيل الفواتير
             s_inv_count = data[data['Amount'] > 0]['TransCode'].nunique()
-            
-            # نسبة الإرجاع من الإجمالي
-            s_gross = data[data['Amount'] > 0]['Amount'].sum()
-            s_ret_rate = (s_ret_val / s_gross * 100) if s_gross > 0 else 0
             
             border = "#27ae60" if is_total else "#034275"
             name_col = "#333" if is_total else "#034275"
             
             html = f"""
-            <div class="salesman-box" style="border-right: 5px solid {border};">
-                <div class="s-header">
-                    <div class="s-name" style="color:{name_col} !important">{name}</div>
-                    {'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px;">الإجمالي</span>' if is_total else ''}
-                </div>
-                <div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net_sales:,.0f}</span></div>
-                <div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_profit:,.0f} ({s_margin:.1f}%)</span></div>
-                <div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv_count}</span></div>
-                <div class="s-row" style="border-top:1px dashed #ddd; margin-top:6px; padding-top:4px;">
-                    <span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span>
-                    <span class="s-val" style="color:#c0392b !important">{s_ret_val:,.0f} ({s_ret_count})</span>
-                </div>
-            </div>
-            """
+<div class="salesman-box" style="border-right: 5px solid {border};">
+    <div class="s-header">
+        <div class="s-name" style="color:{name_col} !important">{name}</div>
+        {'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px;">الإجمالي</span>' if is_total else ''}
+    </div>
+    <div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net_sales:,.0f}</span></div>
+    <div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_profit:,.0f} ({s_margin:.1f}%)</span></div>
+    <div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv_count}</span></div>
+    <div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;">
+        <span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span>
+        <span class="s-val" style="color:#c0392b !important">{s_ret_val:,.0f} (عدد: {s_ret_count})</span>
+    </div>
+</div>
+"""
             with col: st.markdown(html, unsafe_allow_html=True)
 
         idx = 0
@@ -377,15 +372,25 @@ elif st.session_state['page'] == 'dashboard':
         draw_salesman(cols[2], "إجمالي الفريق", df_filtered, is_total=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Charts & Tables (Lego 5 & 6)
+        # Charts & Tables (Row 5 & 6)
         st.markdown('<div class="row-anim d-5">', unsafe_allow_html=True)
         st.markdown("---")
         tab1, tab2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
         with tab1:
             daily = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
-            fig = px.line(daily, x='Date', y=['Amount', 'Profit'], markers=True, color_discrete_map={'Amount': '#034275', 'Profit': '#27ae60'})
-            fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font={'color': '#333'})
+            # تعديل الشارت ليكون كلاسيكياً (خلفية بيضاء، خطوط واضحة)
+            fig = px.line(daily, x='Date', y=['Amount', 'Profit'], markers=True, 
+                          color_discrete_map={'Amount': '#034275', 'Profit': '#27ae60'})
+            
+            fig.update_layout(
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(color="black"), # نصوص سوداء
+                xaxis=dict(showgrid=True, gridcolor='#f0f0f0'), # شبكة خفيفة
+                yaxis=dict(showgrid=True, gridcolor='#f0f0f0')
+            )
             st.plotly_chart(fig, use_container_width=True)
+            
         with tab2:
             gp = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
             fig_pie = px.pie(gp, values='Profit', names='stockgroup', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r)
