@@ -1,92 +1,63 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import xml.etree.ElementTree as ET
 
-# إعداد الصفحة
-st.set_page_config(page_title="لوحة تحكم قطع الغيار", layout="wide", page_icon="🔒")
+st.set_page_config(layout="wide", page_title="فحص ملفات النظام")
 
-# --- 🔐 نظام الحماية (نقطة التفتيش) ---
-def check_password():
-    """Returns `True` if the user had the correct password."""
+# --- 🔐 نظام الحماية (موجود لضمان الخصوصية) ---
+if "password" not in st.session_state:
+    st.session_state["password"] = ""
 
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == st.secrets["PASSWORD"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # حذف كلمة المرور من الذاكرة للأمان
-        else:
-            st.session_state["password_correct"] = False
+if st.session_state["password"] != st.secrets["PASSWORD"]:
+    st.title("🔒 تسجيل الدخول")
+    password = st.text_input("كلمة المرور", type="password")
+    if password == st.secrets["PASSWORD"]:
+        st.session_state["password"] = password
+        st.rerun()
+    else:
+        st.stop()
 
-    # إذا تم تسجيل الدخول مسبقاً
-    if st.session_state.get("password_correct", False):
-        return True
-
-    # واجهة تسجيل الدخول
-    st.title("🔒 تسجيل الدخول محمي")
-    st.text_input(
-        "يرجى إدخال كلمة المرور", type="password", on_change=password_entered, key="password"
-    )
-    
-    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-        st.error("⛔ كلمة المرور غير صحيحة")
-
-    return False
-
-# إذا لم ينجح في كلمة المرور، أوقف البرنامج هنا
-if not check_password():
-    st.stop()
-
-# -------------------------------------------------------------------
-# 👇 هنا يبدأ برنامجك الأصلي (لن يظهر إلا بعد كلمة المرور)
-# -------------------------------------------------------------------
-
-# دالة قراءة XML
-def parse_xml_to_df(uploaded_file):
+# --- 🕵️‍♂️ المحقق كونان (كشف الأعمدة) ---
+def parse_xml_debug(uploaded_file):
     try:
         tree = ET.parse(uploaded_file)
         root = tree.getroot()
         all_records = []
-        for child in root:
+        # نقرأ 3 صفوف فقط عشان السرعة
+        for i, child in enumerate(root):
+            if i > 3: break 
             record = {}
             for subchild in child:
                 record[subchild.tag] = subchild.text
             all_records.append(record)
         return pd.DataFrame(all_records)
     except Exception as e:
-        st.error(f"خطأ: {e}")
+        st.error(f"Error: {e}")
         return None
 
-# الواجهة الرئيسية
-st.title("🔧 لوحة القيادة: إدارة قطع الغيار")
-st.markdown("---")
+st.title("🕵️‍♂️ وضع الفحص: كشف أسماء الأعمدة الحقيقية")
+st.info("الهدف من هذه الشاشة معرفة المسميات البرمجية داخل ملفاتك لتصميم الداشبورد بدقة.")
 
-with st.sidebar:
-    st.header("📂 رفع البيانات")
-    st.success("✅ تم تسجيل الدخول بنجاح")
-    file_details = st.file_uploader("ملف الفواتير (StockInvoiceDetails)", type=['xml'])
-    file_items = st.file_uploader("ملف الأصناف (StockInvoiceRowItems)", type=['xml'])
+col1, col2 = st.columns(2)
 
-if file_details and file_items:
-    df_header = parse_xml_to_df(file_details)
-    df_items = parse_xml_to_df(file_items)
-    
-    if df_header is not None:
-        # معالجة البيانات
-        cols_num = ['Net', 'Tax', 'Total']
-        for c in cols_num:
-            if c in df_header.columns:
-                df_header[c] = pd.to_numeric(df_header[c], errors='coerce').fillna(0)
-        
-        # العرض
-        total_sales = df_header['Net'].sum() if 'Net' in df_header.columns else 0
-        st.metric("إجمالي المبيعات", f"{total_sales:,.0f} ر.س")
-        
-        if 'Salesman' in df_header.columns:
-            st.subheader("مبيعات البائعين")
-            fig = px.bar(df_header.groupby('Salesman')['Net'].sum().reset_index(), x='Salesman', y='Net')
-            st.plotly_chart(fig, use_container_width=True)
-        
-        st.success("تم تحليل البيانات بنجاح!")
-else:
-    st.info("👈 يرجى رفع ملفات XML من القائمة الجانبية لبدء التحليل.")
+with col1:
+    st.subheader("1. ملف الفواتير (InvoiceDetails)")
+    file1 = st.file_uploader("ارفع ملف StockInvoiceDetails.xml", type=['xml'], key="f1")
+    if file1:
+        df1 = parse_xml_debug(file1)
+        if df1 is not None:
+            st.success("✅ تم قراءة الأعمدة:")
+            st.code(list(df1.columns)) # هذا هو الكنز الذي نبحث عنه
+            st.write("عينة بيانات:")
+            st.dataframe(df1.head(2))
+
+with col2:
+    st.subheader("2. ملف الأصناف (RowItems)")
+    file2 = st.file_uploader("ارفع ملف StockInvoiceRowItems.xml", type=['xml'], key="f2")
+    if file2:
+        df2 = parse_xml_debug(file2)
+        if df2 is not None:
+            st.success("✅ تم قراءة الأعمدة:")
+            st.code(list(df2.columns))
+            st.write("عينة بيانات:")
+            st.dataframe(df2.head(2))
