@@ -1,63 +1,211 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import xml.etree.ElementTree as ET
 
-st.set_page_config(layout="wide", page_title="فحص ملفات النظام")
+# --- 1. إعداد الصفحة والتصميم ---
+st.set_page_config(page_title="مدير قطع الغيار الذكي", layout="wide", page_icon="⚙️")
 
-# --- 🔐 نظام الحماية (موجود لضمان الخصوصية) ---
+# تصميم CSS لتحسين مظهر الأرقام
+st.markdown("""
+<style>
+    [data-testid="stMetricValue"] {
+        font-size: 24px;
+        color: #0068c9;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 2. نظام الحماية (كلمة المرور) ---
 if "password" not in st.session_state:
     st.session_state["password"] = ""
 
 if st.session_state["password"] != st.secrets["PASSWORD"]:
     st.title("🔒 تسجيل الدخول")
-    password = st.text_input("كلمة المرور", type="password")
+    password = st.text_input("أدخل كلمة المرور للمتابعة", type="password")
     if password == st.secrets["PASSWORD"]:
         st.session_state["password"] = password
         st.rerun()
     else:
         st.stop()
 
-# --- 🕵️‍♂️ المحقق كونان (كشف الأعمدة) ---
-def parse_xml_debug(uploaded_file):
+# --- 3. دالة المعالجة الذكية (Smart Parser) ---
+@st.cache_data(ttl=3600) # تخزين مؤقت لتسريع الأداء
+def load_data(file_header, file_items):
     try:
-        tree = ET.parse(uploaded_file)
-        root = tree.getroot()
-        all_records = []
-        # نقرأ 3 صفوف فقط عشان السرعة
-        for i, child in enumerate(root):
-            if i > 3: break 
-            record = {}
-            for subchild in child:
-                record[subchild.tag] = subchild.text
-            all_records.append(record)
-        return pd.DataFrame(all_records)
+        # قراءة ملف الفواتير (Header)
+        tree_h = ET.parse(file_header)
+        df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
+        
+        # قراءة ملف الأصناف (Items)
+        tree_i = ET.parse(file_items)
+        df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
+        
+        # --- تنظيف البيانات وتحويل الأنواع ---
+        
+        # 1. تنظيف الفواتير
+        # تحويل التاريخ
+        df_header['Date'] = pd.to_datetime(df_header['TransDate'], errors='coerce')
+        # تحويل الأرقام
+        df_header['GrandTotal'] = pd.to_numeric(df_header['InvoiceTotal'], errors='coerce').fillna(0)
+        df_header['TaxTotal'] = pd.to_numeric(df_header['taxtotal'], errors='coerce').fillna(0)
+        
+        # 2. تنظيف الأصناف
+        df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
+        df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0)
+        df_items['Cost'] = pd.to_numeric(df_items['CostFactor'], errors='coerce').fillna(0)
+        # حساب الربح للصنف الواحد: (سعر البيع - التكلفة) * الكمية
+        # ملاحظة: سنفترض أن CostFactor هو تكلفة الحبة، و Amount هو الإجمالي
+        # إذا كان Amount هو الإجمالي، فإن الربح = Amount - (Cost * Qty)
+        df_items['Profit'] = df_items['Amount'] - (df_items['Cost'] * df_items['Qty'])
+
+        # 3. الدمج (Join)
+        # نربط الأصناف بالفواتير عن طريق 'TransCode' لنعرف تاريخ بيع كل قطعة
+        full_data = pd.merge(
+            df_items, 
+            df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo']], 
+            on='TransCode', 
+            how='left'
+        )
+        
+        return full_data, df_header
+        
     except Exception as e:
-        st.error(f"Error: {e}")
-        return None
+        st.error(f"حدث خطأ في معالجة الملفات: {e}")
+        return None, None
 
-st.title("🕵️‍♂️ وضع الفحص: كشف أسماء الأعمدة الحقيقية")
-st.info("الهدف من هذه الشاشة معرفة المسميات البرمجية داخل ملفاتك لتصميم الداشبورد بدقة.")
+# --- 4. الواجهة الرئيسية ---
+st.title("📊 لوحة القيادة: تحليل نشاط قطع الغيار")
+st.markdown("---")
 
-col1, col2 = st.columns(2)
+# القائمة الجانبية
+with st.sidebar:
+    st.header("📂 مركز البيانات")
+    uploaded_header = st.file_uploader("1. ملف الفواتير (StockInvoiceDetails)", type=['xml'])
+    uploaded_items = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems)", type=['xml'])
+    
+    st.markdown("---")
+    st.write("©️ 2026 - الإصدار الخاص")
 
-with col1:
-    st.subheader("1. ملف الفواتير (InvoiceDetails)")
-    file1 = st.file_uploader("ارفع ملف StockInvoiceDetails.xml", type=['xml'], key="f1")
-    if file1:
-        df1 = parse_xml_debug(file1)
-        if df1 is not None:
-            st.success("✅ تم قراءة الأعمدة:")
-            st.code(list(df1.columns)) # هذا هو الكنز الذي نبحث عنه
-            st.write("عينة بيانات:")
-            st.dataframe(df1.head(2))
+if uploaded_header and uploaded_items:
+    
+    # استدعاء دالة المعالجة
+    df_merged, df_invoices = load_data(uploaded_header, uploaded_items)
+    
+    if df_merged is not None:
+        
+        # --- الفلاتر (Filters) ---
+        col_fil1, col_fil2, col_fil3 = st.columns(3)
+        with col_fil1:
+            # فلتر التاريخ
+            min_date = df_merged['Date'].min()
+            max_date = df_merged['Date'].max()
+            date_range = st.date_input("الفترة الزمنية", [min_date, max_date])
+        
+        with col_fil2:
+            # فلتر البائعين
+            salesmen = ['الكل'] + list(df_merged['SalesMan'].unique())
+            selected_salesman = st.selectbox("اختر البائع", salesmen)
+            
+        with col_fil3:
+            # فلتر مجموعات الأصناف
+            groups = ['الكل'] + list(df_merged['stockgroup'].unique())
+            selected_group = st.selectbox("مجموعة الأصناف", groups)
 
-with col2:
-    st.subheader("2. ملف الأصناف (RowItems)")
-    file2 = st.file_uploader("ارفع ملف StockInvoiceRowItems.xml", type=['xml'], key="f2")
-    if file2:
-        df2 = parse_xml_debug(file2)
-        if df2 is not None:
-            st.success("✅ تم قراءة الأعمدة:")
-            st.code(list(df2.columns))
-            st.write("عينة بيانات:")
-            st.dataframe(df2.head(2))
+        # تطبيق الفلاتر
+        filtered_df = df_merged.copy()
+        
+        # فلتر التاريخ
+        if len(date_range) == 2:
+             filtered_df = filtered_df[
+                (filtered_df['Date'].dt.date >= date_range[0]) & 
+                (filtered_df['Date'].dt.date <= date_range[1])
+            ]
+        
+        # فلتر البائع
+        if selected_salesman != 'الكل':
+            filtered_df = filtered_df[filtered_df['SalesMan'] == selected_salesman]
+            
+        # فلتر المجموعة
+        if selected_group != 'الكل':
+            filtered_df = filtered_df[filtered_df['stockgroup'] == selected_group]
+
+        # --- 5. مؤشرات الأداء (KPIs) ---
+        st.markdown("### 📌 نظرة عامة مالية")
+        
+        total_sales = filtered_df['Amount'].sum()
+        total_profit = filtered_df['Profit'].sum()
+        total_cost = (filtered_df['Cost'] * filtered_df['Qty']).sum()
+        profit_margin = (total_profit / total_sales * 100) if total_sales > 0 else 0
+        total_inv_count = filtered_df['TransCode'].nunique()
+
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        kpi1.metric("إجمالي المبيعات", f"{total_sales:,.0f} ر.س", delta="الإيرادات")
+        kpi2.metric("إجمالي الربح التقديري", f"{total_profit:,.0f} ر.س", delta=f"{profit_margin:.1f}% هامش ربح")
+        kpi3.metric("قيمة التكلفة", f"{total_cost:,.0f} ر.س", delta="المشتريات المباعة", delta_color="inverse")
+        kpi4.metric("عدد الفواتير", f"{total_inv_count}", delta="حركة")
+
+        st.markdown("---")
+
+        # --- 6. الرسوم البيانية ---
+        
+        # الصف الأول من الرسوم
+        chart_row1_1, chart_row1_2 = st.columns(2)
+        
+        with chart_row1_1:
+            st.subheader("📈 نمو المبيعات (يومياً)")
+            sales_trend = filtered_df.groupby('Date')['Amount'].sum().reset_index()
+            fig_trend = px.line(sales_trend, x='Date', y='Amount', markers=True, 
+                               labels={'Amount': 'المبيعات', 'Date': 'التاريخ'})
+            fig_trend.update_traces(line_color='#0068c9', line_width=3)
+            st.plotly_chart(fig_trend, use_container_width=True)
+            
+        with chart_row1_2:
+            st.subheader("📦 أفضل المجموعات مبيعاً")
+            group_sales = filtered_df.groupby('stockgroup')['Amount'].sum().reset_index().sort_values('Amount', ascending=False).head(7)
+            fig_pie = px.pie(group_sales, values='Amount', names='stockgroup', hole=0.4)
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        # الصف الثاني من الرسوم
+        chart_row2_1, chart_row2_2 = st.columns(2)
+        
+        with chart_row2_1:
+            st.subheader("🏆 أداء البائعين")
+            salesman_perf = filtered_df.groupby('SalesMan')['Amount'].sum().reset_index().sort_values('Amount', ascending=False)
+            fig_bar = px.bar(salesman_perf, x='SalesMan', y='Amount', text_auto='.2s',
+                            color='Amount', color_continuous_scale='Viridis')
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+        with chart_row2_2:
+            st.subheader("👥 كبار العملاء")
+            top_customers = filtered_df.groupby('LedgerName')['Amount'].sum().reset_index().sort_values('Amount', ascending=False).head(10)
+            fig_cust = px.bar(top_customers, y='LedgerName', x='Amount', orientation='h', 
+                             text_auto='.2s', title="أعلى 10 عملاء شراءً")
+            fig_cust.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_cust, use_container_width=True)
+
+        # --- 7. الجداول التفصيلية ---
+        st.markdown("---")
+        col_tbl1, col_tbl2 = st.columns(2)
+        
+        with col_tbl1:
+            st.subheader("📦 الأصناف الأكثر مبيعاً (بالكمية)")
+            top_items = filtered_df.groupby(['StockName', 'stockgroup'])[['Qty', 'Amount']].sum().reset_index()
+            top_items = top_items.sort_values('Qty', ascending=False).head(10)
+            st.dataframe(top_items, use_container_width=True)
+            
+        with col_tbl2:
+            st.subheader("⚠️ أصناف منخفضة الربحية (تحذير)")
+            # أصناف هامش ربحها سالب أو صفر
+            low_margin = filtered_df.groupby('StockName')[['Amount', 'Profit']].sum().reset_index()
+            low_margin = low_margin[low_margin['Profit'] <= 0].sort_values('Profit')
+            if not low_margin.empty:
+                st.dataframe(low_margin.head(10), use_container_width=True)
+            else:
+                st.success("ممتاز! لا توجد أصناف خاسرة في الفترة المحددة.")
+
+    else:
+        st.warning("تأكد من رفع الملفات الصحيحة.")
+else:
+    st.info("👈 ابدأ برفع ملفات الفواتير والأصناف من القائمة الجانبية.")
