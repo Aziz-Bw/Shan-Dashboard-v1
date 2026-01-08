@@ -316,28 +316,110 @@ if selected_page == "💰 المبيعات (Sales)":
     else:
         st.warning("⚠️ الرجاء رفع ملفات الفواتير من القائمة الجانبية لعرض المبيعات.")
 
-# --- 6. الصفحة: التحصيل والديون ---
+# ==========================
+# صفحة 2: التحصيل والديون
+# ==========================
 elif selected_page == "💸 التحصيل والديون":
     
+    # عنوان الصفحة
     st.markdown("""
     <div class="content-box">
         <h2 class="content-title">💸 مراقبة الديون والتحصيل</h2>
-        <p>جاري تحليل ملف LedgerBook.xml...</p>
+        <p>تحليل أرصدة العملاء والديون القائمة (Credit Control)</p>
     </div>
     """, unsafe_allow_html=True)
     
-    if st.session_state['ledger_file']:
-        # عرض محتويات الملف لمعرفة الأعمدة
+    # التأكد من وجود الملف
+    if not st.session_state['ledger_file']:
+        st.warning("⚠️ الرجاء رفع ملف LedgerBook.xml من القائمة الجانبية للبدء.")
+    else:
+        # قراءة الملف
         df_ledger = inspect_ledger_file(st.session_state['ledger_file'])
         
         if df_ledger is not None:
-            st.success(f"تم قراءة الملف بنجاح! عدد الصفوف: {len(df_ledger)}")
-            st.subheader("👀 نظرة سريعة على البيانات (أول 5 صفوف)")
-            st.dataframe(df_ledger.head())
+            # --- 1. معالجة البيانات (Data Processing) ---
+            # تحويل الأرقام
+            df_ledger['Dr'] = pd.to_numeric(df_ledger['Dr'], errors='coerce').fillna(0)
+            df_ledger['Cr'] = pd.to_numeric(df_ledger['Cr'], errors='coerce').fillna(0)
             
-            st.subheader("📋 قائمة الأعمدة المكتشفة:")
-            st.write(list(df_ledger.columns))
+            # تجميع البيانات حسب اسم العميل/الحساب
+            # نجمع كل الحركات (فواتير + سندات) لكل شخص
+            customers_summary = df_ledger.groupby('LedgerName').agg(
+                Total_Debit=('Dr', 'sum'),  # إجمالي ما أخذه (مدين)
+                Total_Credit=('Cr', 'sum'), # إجمالي ما سدده (دائن)
+                Transactions=('TransCode', 'count') # عدد الحركات
+            ).reset_index()
             
-            st.info("👆 يرجى إخباري بأسماء الأعمدة التي تمثل (المدين/Debit) و (الدائن/Credit) و (اسم العميل) لنبدأ بناء التقرير.")
-    else:
-        st.warning("⚠️ الرجاء رفع ملف LedgerBook.xml من القائمة الجانبية.")
+            # حساب الرصيد الحالي (الديون)
+            # الرصيد = المدين - الدائن
+            customers_summary['Balance'] = customers_summary['Total_Debit'] - customers_summary['Total_Credit']
+            
+            # --- الفلترة الذكية (استبعاد الموردين والأرصدة الصفرية) ---
+            # نفترض أن العميل هو من عليه دين (رصيد موجب أكبر من 1 ريال)
+            # هذا سيخفي الموردين (رصيد سالب) والمخلصين (رصيد صفر)
+            debtors = customers_summary[customers_summary['Balance'] > 10].sort_values('Balance', ascending=False)
+            
+            # --- 2. المؤشرات العامة (KPIs) ---
+            total_debt = debtors['Balance'].sum() # إجمالي الديون في السوق
+            total_collected = debtors['Total_Credit'].sum() # ما تم تحصيله من هؤلاء
+            collection_rate = (total_collected / (total_collected + total_debt) * 100) if total_debt > 0 else 0
+            debtors_count = debtors['LedgerName'].nunique()
+            
+            # عرض الكروت
+            k1, k2, k3, k4 = st.columns(4)
+            
+            # دالة الكرت (نفس التصميم السابق)
+            def metric_card(title, value, sub, color="#034275"):
+                return f"""<div class="metric-card"><div class="metric-label">{title}</div><div class="metric-value" style="color: {color} !important;">{value}</div><div class="metric-sub">{sub}</div></div>"""
+
+            with k1: st.markdown(metric_card("إجمالي الديون (لكم)", f"{total_debt:,.0f}", "رصيد قائم بالسوق", "#c0392b"), unsafe_allow_html=True)
+            with k2: st.markdown(metric_card("إجمالي التحصيل", f"{total_collected:,.0f}", "دفعات مستلمة", "#27ae60"), unsafe_allow_html=True)
+            with k3: st.markdown(metric_card("نسبة التحصيل", f"{collection_rate:.1f}%", "معدل السداد"), unsafe_allow_html=True)
+            with k4: st.markdown(metric_card("عدد المديونيات", f"{debtors_count}", "عميل عليه رصيد"), unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # --- 3. الرسم البياني (أعلى 10 ديون) ---
+            c1, c2 = st.columns([2, 1])
+            
+            with c1:
+                st.subheader("📊 أعلى 10 عملاء عليهم مديونيات")
+                top_10_debtors = debtors.head(10)
+                fig = px.bar(top_10_debtors, x='LedgerName', y='Balance', text_auto='.2s',
+                             title="", color='Balance', color_continuous_scale='Reds')
+                fig.update_layout(
+                    plot_bgcolor="white", paper_bgcolor="white", font=dict(color="black"),
+                    xaxis_title="العميل", yaxis_title="المبلغ المتبقى (ر.س)"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+            with c2:
+                st.subheader("🥧 توزيع الديون")
+                # تصنيف الديون (كبار، متوسط، صغير)
+                def categorize_debt(amount):
+                    if amount > 50000: return 'ديون ضخمة (>50k)'
+                    elif amount > 10000: return 'ديون متوسطة (10k-50k)'
+                    else: return 'ديون صغيرة (<10k)'
+                
+                debtors['Category'] = debtors['Balance'].apply(categorize_debt)
+                pie_data = debtors.groupby('Category')['Balance'].sum().reset_index()
+                
+                fig_pie = px.pie(pie_data, values='Balance', names='Category', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+            # --- 4. الجدول التفصيلي ---
+            st.markdown("### 📋 كشف أرصدة العملاء التفصيلي")
+            
+            # تنسيق الجدول
+            st.dataframe(
+                debtors[['LedgerName', 'Total_Debit', 'Total_Credit', 'Balance', 'Transactions']],
+                column_config={
+                    "LedgerName": "اسم العميل",
+                    "Total_Debit": st.column_config.NumberColumn("إجمالي المسحوبات", format="%d"),
+                    "Total_Credit": st.column_config.NumberColumn("إجمالي السداد", format="%d"),
+                    "Balance": st.column_config.NumberColumn("الرصيد المتبقى (الدين)", format="%d"),
+                    "Transactions": "عدد الحركات"
+                },
+                use_container_width=True,
+                height=600
+            )
