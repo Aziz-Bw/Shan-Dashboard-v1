@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 🎨 التصميم (CSS) ---
+# --- 🎨 التصميم (CSS) - ألوان ثابتة وواضحة ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
@@ -47,10 +47,10 @@ st.markdown("""
         background-color: var(--card-bg) !important;
         border: 1px solid #e0e0e0;
         border-radius: 10px;
-        padding: 15px 2px; /* تقليل الحواف الجانبية */
+        padding: 15px 2px;
         text-align: center;
         box-shadow: 0 3px 6px rgba(0,0,0,0.05);
-        height: 160px; /* زيادة الارتفاع قليلاً */
+        height: 160px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -69,7 +69,7 @@ st.markdown("""
     
     .metric-value {
         color: var(--brand-blue) !important;
-        font-size: 20px; /* ضبط الحجم ليناسب 7 كروت */
+        font-size: 20px;
         font-weight: 800;
         margin: 0;
         direction: ltr;
@@ -152,6 +152,10 @@ def normalize_salesman_name(name):
 @st.cache_data(ttl=3600)
 def load_auto_data(file_header, file_items):
     try:
+        # --- إصلاح الخطأ هنا: إعادة المؤشر للبداية ---
+        file_header.seek(0)
+        file_items.seek(0)
+        
         tree_h = ET.parse(file_header); df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
         tree_i = ET.parse(file_items); df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
         
@@ -274,7 +278,7 @@ elif st.session_state['page'] == 'dashboard':
         with fc1: d_range = st.date_input("📅 الفترة الزمنية", [min_d, max_d])
         with fc2:
             s_list = ['الكل'] + sorted(list(df['SalesMan_Clean'].astype(str).unique()))
-            s_filter = st.selectbox("👤 موظف المبيعات", s_list) # تم التعديل
+            s_filter = st.selectbox("👤 موظف المبيعات", s_list)
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Filter Logic
@@ -299,7 +303,7 @@ elif st.session_state['page'] == 'dashboard':
         days_diff = (d_range[1] - d_range[0]).days if isinstance(d_range, (list, tuple)) and len(d_range) == 2 else 1
         months_diff = max(days_diff / 30, 1)
 
-        # KPIs Cards (Row 3) - توسيع لـ 7 أعمدة
+        # KPIs Cards (Row 3)
         st.markdown('<div class="row-anim d-3">', unsafe_allow_html=True)
         k1, k2, k3, k4, k5, k6, k7 = st.columns(7)
         
@@ -314,13 +318,10 @@ elif st.session_state['page'] == 'dashboard':
 
         with k1: st.markdown(metric_card("صافي المبيعات", f"{net_sales:,.0f}", "الإيراد الفعلي"), unsafe_allow_html=True)
         with k2: st.markdown(metric_card("صافي الربح", f"{total_profit:,.0f}", f"{margin:.1f}% هامش", "#27ae60"), unsafe_allow_html=True)
-        # تم تعديل العنوان هنا
         with k3: st.markdown(metric_card("تكلفة البضاعة", f"{total_cost:,.0f}", "تكلفة البضاعة المباعة للفترة"), unsafe_allow_html=True)
-        # تم تعديل النص هنا
         with k4: st.markdown(metric_card("الإرجاعات", f"{returns_val:,.0f}", f"عدد: {returns_count} مرتجع", "#c0392b"), unsafe_allow_html=True)
         with k5: st.markdown(metric_card("عدد الفواتير", f"{invoices_count}", "فاتورة مبيعات"), unsafe_allow_html=True)
         with k6: st.markdown(metric_card("متوسط المبيعات", f"{net_sales/months_diff:,.0f}", "شهرياً"), unsafe_allow_html=True)
-        # البطاقة السابعة الجديدة
         with k7: st.markdown(metric_card("متوسط الربح", f"{total_profit/months_diff:,.0f}", f"شهرياً ({margin:.1f}%)", "#27ae60"), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -378,19 +379,15 @@ elif st.session_state['page'] == 'dashboard':
         tab1, tab2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
         with tab1:
             daily = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
-            # تعديل الشارت ليكون كلاسيكياً (خلفية بيضاء، خطوط واضحة)
-            fig = px.line(daily, x='Date', y=['Amount', 'Profit'], markers=True, 
-                          color_discrete_map={'Amount': '#034275', 'Profit': '#27ae60'})
-            
+            fig = px.line(daily, x='Date', y=['Amount', 'Profit'], markers=True, color_discrete_map={'Amount': '#034275', 'Profit': '#27ae60'})
             fig.update_layout(
                 plot_bgcolor="white",
                 paper_bgcolor="white",
-                font=dict(color="black"), # نصوص سوداء
-                xaxis=dict(showgrid=True, gridcolor='#f0f0f0'), # شبكة خفيفة
+                font=dict(color="black"),
+                xaxis=dict(showgrid=True, gridcolor='#f0f0f0'),
                 yaxis=dict(showgrid=True, gridcolor='#f0f0f0')
             )
             st.plotly_chart(fig, use_container_width=True)
-            
         with tab2:
             gp = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
             fig_pie = px.pie(gp, values='Profit', names='stockgroup', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r)
