@@ -21,9 +21,8 @@ def load_data(file_header, file_items, cost_col_name):
         tree_h = ET.parse(file_header); df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
         tree_i = ET.parse(file_items); df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
         
-        # 1. فلترة المحذوفات (أهم خطوة)
+        # 1. فلترة المحذوفات
         if 'IsDelete' in df_header.columns:
-            # نتأكد أن القيم ليست "True" أو "1"
             df_header = df_header[~df_header['IsDelete'].isin(['True', 'true', '1'])]
 
         # 2. تنظيف التاريخ
@@ -40,11 +39,17 @@ def load_data(file_header, file_items, cost_col_name):
         df_items['TotalCost'] = df_items['CostUnit'] * df_items['Qty']
         df_items['Profit'] = df_items['Amount'] - df_items['TotalCost']
 
-        if 'SalesMan' in df_items.columns: df_items = df_items.drop(columns=['SalesMan'])
+        # 🔥 حل مشكلة التصادم (حذف الأعمدة المكررة من الأصناف) 🔥
+        cols_to_drop = ['SalesMan', 'VoucherName']
+        for col in cols_to_drop:
+            if col in df_items.columns:
+                df_items = df_items.drop(columns=[col])
+
+        # توحيد اسم البائع في الفواتير
         if 'SalesPerson' in df_header.columns: df_header['SalesMan'] = df_header['SalesPerson']
         else: df_header['SalesMan'] = 'غير محدد'
 
-        # 4. الدمج (مع جلب VoucherName للفلترة)
+        # 4. الدمج
         full_data = pd.merge(df_items, df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'SalesMan', 'VoucherName']], on='TransCode', how='inner')
         return full_data.dropna(subset=['Date'])
     except Exception as e: st.error(f"Error: {e}"); return None
@@ -59,56 +64,43 @@ if f1 and f2:
     df = load_data(f1, f2, cost_opt)
     if df is not None:
         
-        # --- 🔴 الفلتر الذهبي: أنواع الفواتير ---
+        # --- الفلتر الذهبي ---
         st.sidebar.markdown("---")
-        st.sidebar.header("🎯 تصفية نوع السند (هام جداً)")
+        st.sidebar.header("🎯 تصفية نوع السند")
         
-        # نجمع كل الأنواع الموجودة
         all_vouchers = list(df['VoucherName'].unique())
-        
-        # نحاول تخمين المبيعات (نبحث عن كلمة Sales أو Cash)
         default_selection = [v for v in all_vouchers if 'Sale' in str(v) or 'Cash' in str(v) or 'Invoice' in str(v)]
         
         selected_vouchers = st.sidebar.multiselect(
-            "حدد فقط الفواتير التي تحسب كـ 'مبيعات':",
+            "حدد الفواتير التي تحسب كـ 'مبيعات':",
             options=all_vouchers,
             default=default_selection
         )
         
-        # تطبيق الفلتر
         filtered_df = df[df['VoucherName'].isin(selected_vouchers)]
         
-        # --- الفلاتر الزمنية ---
+        # --- باقي الفلاتر والعرض ---
         min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
         c1, c2 = st.columns(2)
         with c1: d_range = st.date_input("الفترة", [min_d, max_d])
-        with c2: 
-            salesman_filter = st.selectbox("البائع", ['الكل'] + list(filtered_df['SalesMan'].unique()))
+        with c2: salesman_filter = st.selectbox("البائع", ['الكل'] + list(filtered_df['SalesMan'].unique()))
 
-        # فلترة التاريخ والبائع
         if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
             filtered_df = filtered_df[(filtered_df['Date'].dt.date >= d_range[0]) & (filtered_df['Date'].dt.date <= d_range[1])]
         if salesman_filter != 'الكل':
             filtered_df = filtered_df[filtered_df['SalesMan'] == salesman_filter]
 
-        # --- عرض الأرقام للمطابقة ---
         total_sales = filtered_df['Amount'].sum()
         total_profit = filtered_df['Profit'].sum()
         
-        st.markdown("### 🔢 النتائج الحالية (للمطابقة مع البرنامج)")
+        st.markdown("### 🔢 النتائج للمطابقة")
         k1, k2, k3 = st.columns(3)
         k1.metric("إجمالي المبيعات", f"{total_sales:,.2f}")
         k2.metric("صافي الربح", f"{total_profit:,.2f}")
         k3.metric("عدد الفواتير", len(filtered_df['TransCode'].unique()))
 
-        # عرض ما تم استبعاده (للتأكد)
-        excluded_df = df[~df['VoucherName'].isin(selected_vouchers)]
-        if not excluded_df.empty:
-            with st.expander("🗑️ السندات المستبعدة (تأكد أن المشتريات والمرتجعات هنا)"):
-                st.write(excluded_df.groupby('VoucherName')['Amount'].sum().reset_index())
-
-        # الرسوم
-        st.markdown("---")
-        col_g1, col_g2 = st.columns(2)
-        with col_g1: st.plotly_chart(px.line(filtered_df.groupby('Date')['Amount'].sum().reset_index(), x='Date', y='Amount', title="المبيعات اليومية"), use_container_width=True)
-        with col_g2: st.plotly_chart(px.bar(filtered_df.groupby('SalesMan')['Amount'].sum().reset_index(), x='SalesMan', y='Amount', title="أداء البائعين"), use_container_width=True)
+        if not filtered_df.empty:
+            st.markdown("---")
+            col_g1, col_g2 = st.columns(2)
+            with col_g1: st.plotly_chart(px.line(filtered_df.groupby('Date')['Amount'].sum().reset_index(), x='Date', y='Amount', title="المبيعات اليومية"), use_container_width=True)
+            with col_g2: st.plotly_chart(px.bar(filtered_df.groupby('SalesMan')['Amount'].sum().reset_index(), x='SalesMan', y='Amount', title="أداء البائعين"), use_container_width=True)
