@@ -4,13 +4,13 @@ import plotly.express as px
 import xml.etree.ElementTree as ET
 
 # --- 1. إعدادات الصفحة ---
-st.set_page_config(page_title="مدير قطع الغيار الآلي", layout="wide", page_icon="🚀")
+st.set_page_config(page_title="مدير قطع الغيار", layout="wide", page_icon="🏎️")
 
 # CSS
 st.markdown("""
 <style>
-    [data-testid="stMetricValue"] {font-size: 26px; color: #0068c9; font-weight: bold;}
-    div[data-testid="stSidebarUserContent"] {padding-top: 20px;}
+    [data-testid="stMetricValue"] {font-size: 24px; color: #0068c9; font-weight: bold;}
+    .salesman-card {background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #dee2e6;}
     .big-font {font-size:18px !important;}
 </style>
 """, unsafe_allow_html=True)
@@ -22,36 +22,23 @@ if st.session_state["password"] != st.secrets["PASSWORD"]:
     if password == st.secrets["PASSWORD"]: st.session_state["password"] = password; st.rerun()
     else: st.stop()
 
-# --- دالة تنظيف أسماء البائعين (جديد) ---
+# --- دالة توحيد الأسماء ---
 def normalize_salesman_name(name):
-    if pd.isna(name) or name == 'nan' or name == 'غير محدد':
-        return 'غير محدد'
-    
+    if pd.isna(name) or name == 'nan' or name == 'غير محدد': return 'غير محدد'
     name = str(name).strip()
-    
-    # توحيد "سعيد" و "السعيد"
-    if 'سعيد' in name:
-        return 'سعيد'
-    
-    # توحيد "عبد الله" و "عبدالله"
-    if 'عبد' in name and 'الله' in name:
-        return 'عبد الله'
-        
+    if 'سعيد' in name: return 'سعيد'
+    if 'عبد' in name and 'الله' in name: return 'عبد الله'
     return name
 
 # --- 3. المعالجة الآلية ---
 @st.cache_data(ttl=3600)
 def load_auto_data(file_header, file_items):
     try:
-        # قراءة الملفات
         tree_h = ET.parse(file_header); df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
         tree_i = ET.parse(file_items); df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
         
-        # 1. فلترة المحذوفات
-        if 'IsDelete' in df_header.columns:
-            df_header = df_header[~df_header['IsDelete'].isin(['True', 'true', '1'])]
+        if 'IsDelete' in df_header.columns: df_header = df_header[~df_header['IsDelete'].isin(['True', 'true', '1'])]
 
-        # 2. الفرز الآلي للسندات
         sales_keywords = ['بيع', 'Sale', 'Invoice', 'Cash', 'Credit']
         exclude_keywords = ['شراء', 'Purchase', 'Quot', 'عرض', 'Order', 'طلب']
         
@@ -63,58 +50,35 @@ def load_auto_data(file_header, file_items):
 
         df_header['Action'] = df_header['VoucherName'].apply(classify_voucher)
         df_header = df_header[df_header['Action'] == 'Keep']
-
-        # 3. تنظيف التاريخ
         df_header['Date'] = pd.to_datetime(pd.to_numeric(df_header['TransDateValue'], errors='coerce'), unit='D', origin='1899-12-30')
         
-        # --- معالجة البائع (التحسين الجديد) ---
-        # نجهز اسم البائع في الفاتورة
-        if 'SalesPerson' in df_header.columns:
-            df_header['Header_SalesMan'] = df_header['SalesPerson'].fillna('')
-        else:
-            df_header['Header_SalesMan'] = ''
+        if 'SalesPerson' in df_header.columns: df_header['Header_SalesMan'] = df_header['SalesPerson'].fillna('')
+        else: df_header['Header_SalesMan'] = ''
 
-        # 4. معالجة الأصناف
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
         
-        # المبيعات (الصافي)
-        if 'TaxbleAmount' in df_items.columns:
-            df_items['Amount'] = pd.to_numeric(df_items['TaxbleAmount'], errors='coerce').fillna(0)
-        elif 'BasicStockAmount' in df_items.columns:
-            df_items['Amount'] = pd.to_numeric(df_items['BasicStockAmount'], errors='coerce').fillna(0)
-        else:
-            df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0) / 1.15
+        if 'TaxbleAmount' in df_items.columns: df_items['Amount'] = pd.to_numeric(df_items['TaxbleAmount'], errors='coerce').fillna(0)
+        elif 'BasicStockAmount' in df_items.columns: df_items['Amount'] = pd.to_numeric(df_items['BasicStockAmount'], errors='coerce').fillna(0)
+        else: df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0) / 1.15
 
-        # التكلفة (PresetRate)
         cost_col = 'PresetRate'
-        if cost_col in df_items.columns:
-            df_items['CostUnit'] = pd.to_numeric(df_items[cost_col], errors='coerce').fillna(0)
-        elif 'PresetRate2' in df_items.columns:
-             df_items['CostUnit'] = pd.to_numeric(df_items['PresetRate2'], errors='coerce').fillna(0)
-        else:
-            df_items['CostUnit'] = 0
+        if cost_col in df_items.columns: df_items['CostUnit'] = pd.to_numeric(df_items[cost_col], errors='coerce').fillna(0)
+        elif 'PresetRate2' in df_items.columns: df_items['CostUnit'] = pd.to_numeric(df_items['PresetRate2'], errors='coerce').fillna(0)
+        else: df_items['CostUnit'] = 0
             
         df_items['TotalCost'] = df_items['CostUnit'] * df_items['Qty']
         
-        # تنظيف الأعمدة المكررة ما عدا SalesMan في الأصناف
-        cols_to_drop = ['VoucherName', 'SalesPerson', 'Action'] # أزلنا SalesMan من هنا لنحتفظ به
+        cols_to_drop = ['VoucherName', 'SalesPerson', 'Action']
         for col in cols_to_drop:
             if col in df_items.columns: df_items = df_items.drop(columns=[col])
 
-        # 5. الدمج
         full_data = pd.merge(df_items, df_header[['TransCode', 'Date', 'LedgerName', 'InvoiceNo', 'Header_SalesMan', 'VoucherName']], on='TransCode', how='inner')
         
-        # --- المنطق الذكي لاسم البائع ---
-        # إذا وجدنا اسم في ملف الأصناف نأخذه، وإلا نأخذ من الفاتورة
-        if 'SalesMan' in full_data.columns:
-            full_data['Final_SalesMan'] = full_data['SalesMan'].fillna(full_data['Header_SalesMan'])
-        else:
-            full_data['Final_SalesMan'] = full_data['Header_SalesMan']
+        if 'SalesMan' in full_data.columns: full_data['Final_SalesMan'] = full_data['SalesMan'].fillna(full_data['Header_SalesMan'])
+        else: full_data['Final_SalesMan'] = full_data['Header_SalesMan']
             
-        # تطبيق التوحيد (سعيد = السعيد)
         full_data['SalesMan_Clean'] = full_data['Final_SalesMan'].apply(normalize_salesman_name)
 
-        # 6. المرتجعات
         mask_return = full_data['VoucherName'].str.contains('Return|مرتجع', case=False, na=False)
         full_data.loc[mask_return, 'Amount'] = full_data.loc[mask_return, 'Amount'] * -1
         full_data.loc[mask_return, 'TotalCost'] = full_data.loc[mask_return, 'TotalCost'] * -1
@@ -127,13 +91,12 @@ def load_auto_data(file_header, file_items):
     except Exception as e: st.error(f"خطأ فني: {e}"); return None
 
 # --- 4. الواجهة ---
-st.title("🚀 لوحة القيادة الآلية (إصلاح البائعين)")
-st.caption("تم ضبط الأسماء: (سعيد + السعيد) | (عبدالله + عبد الله)")
+st.title("🏎️ تقارير الأداء الشاملة")
 
 with st.sidebar:
-    st.header("📂 الملفات")
-    f1 = st.file_uploader("1. ملف الفواتير (StockInvoiceDetails)", type=['xml'])
-    f2 = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems)", type=['xml'])
+    st.header("📂 البيانات")
+    f1 = st.file_uploader("1. ملف الفواتير (Invoice)", type=['xml'])
+    f2 = st.file_uploader("2. ملف الأصناف (Items)", type=['xml'])
 
 if f1 and f2:
     df = load_auto_data(f1, f2)
@@ -145,7 +108,6 @@ if f1 and f2:
         c1, c2 = st.columns(2)
         with c1: d_range = st.date_input("📅 الفترة", [min_d, max_d])
         with c2: 
-            # استخدام الاسم المنظف
             salesman_list = ['الكل'] + sorted(list(df['SalesMan_Clean'].astype(str).unique()))
             salesman_filter = st.selectbox("👤 البائع", salesman_list)
 
@@ -158,47 +120,117 @@ if f1 and f2:
 
         st.markdown("---")
 
-        # KPIs
+        # 1. ملخص الأرقام
         total_sales = df_filtered['Amount'].sum()
         total_profit = df_filtered['Profit'].sum()
         total_cost = df_filtered['TotalCost'].sum()
         margin = (total_profit / total_sales * 100) if total_sales > 0 else 0
-        inv_count = df_filtered['TransCode'].nunique()
+        
+        days_diff = (d_range[1] - d_range[0]).days if isinstance(d_range, (list, tuple)) and len(d_range) == 2 else 1
+        months_diff = max(days_diff / 30, 1)
 
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("💰 صافي المبيعات", f"{total_sales:,.0f} ر.س")
-        k2.metric("📉 التكلفة", f"{total_cost:,.0f} ر.س")
-        k3.metric("📈 صافي الربح", f"{total_profit:,.0f} ر.س", delta=f"{margin:.1f}%")
-        k4.metric("🧾 العمليات", f"{inv_count}")
+        k1.metric("💰 المبيعات", f"{total_sales:,.0f}")
+        k2.metric("📉 التكلفة", f"{total_cost:,.0f}")
+        k3.metric("📈 الربح", f"{total_profit:,.0f}", delta=f"{margin:.1f}%")
+        k4.metric("📅 المتوسط الشهري", f"{total_sales/months_diff:,.0f}")
 
-        # Charts
-        st.markdown("### 📊 التحليل")
-        tab1, tab2, tab3 = st.tabs(["يومياً", "بائعين", "مجموعات"])
-        
+        st.markdown("---")
+
+        # 2. بطاقات البائعين
+        st.subheader("👥 أداء فريق المبيعات")
+        salesmen_stats = []
+        for sm in df_filtered['SalesMan_Clean'].unique():
+            if sm == 'غير محدد': continue
+            sm_data = df_filtered[df_filtered['SalesMan_Clean'] == sm]
+            net_sales = sm_data['Amount'].sum()
+            net_profit = sm_data['Profit'].sum()
+            sm_margin = (net_profit / net_sales * 100) if net_sales > 0 else 0
+            
+            # حساب المرتجعات
+            returns_only = sm_data[sm_data['Amount'] < 0]
+            return_val = abs(returns_only['Amount'].sum())
+            return_count = returns_only['TransCode'].nunique()
+            
+            salesmen_stats.append({
+                'البائع': sm,
+                'المبيعات': net_sales,
+                'الربح': net_profit,
+                'النسبة': sm_margin,
+                'قيمة المرتجعات': return_val,
+                'عدد المرتجعات': return_count
+            })
+            
+        cols = st.columns(len(salesmen_stats)) if len(salesmen_stats) > 0 else []
+        for i, stat in enumerate(salesmen_stats):
+            with cols[i]:
+                st.markdown(f"""
+                <div class="salesman-card">
+                    <h3 style="text-align: center;">{stat['البائع']}</h3>
+                    <hr>
+                    <p>💰 بيع: <b>{stat['المبيعات']:,.0f}</b></p>
+                    <p>📈 ربح: <b style="color:green">{stat['الربح']:,.0f} ({stat['النسبة']:.1f}%)</b></p>
+                    <p style="color:red">↩️ مرتجع: <b>{stat['قيمة المرتجعات']:,.0f} ({stat['عدد المرتجعات']})</b></p>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # 3. الرسوم البيانية
+        st.markdown("---")
+        tab1, tab2 = st.tabs(["تحليل زمني", "تحليل مجموعات"])
         with tab1:
             daily_data = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
             st.plotly_chart(px.line(daily_data, x='Date', y=['Amount', 'Profit'], markers=True), use_container_width=True)
-            
         with tab2:
-            # الرسم البياني يستخدم الاسم النظيف الآن
-            salesman_perf = df_filtered.groupby('SalesMan_Clean')[['Amount', 'Profit']].sum().reset_index().sort_values('Amount', ascending=False)
-            st.plotly_chart(px.bar(salesman_perf, x='SalesMan_Clean', y=['Amount', 'Profit'], barmode='group', text_auto='.2s'), use_container_width=True)
-            
-        with tab3:
             group_perf = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
             st.plotly_chart(px.pie(group_perf, values='Profit', names='stockgroup', hole=0.4), use_container_width=True)
 
-        # Tables
+        # 4. 📦 القائمة الشاملة للأصناف (مع زر التصدير)
         st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("🔥 الأكثر مبيعاً")
-            top_qty = df_filtered.groupby(['StockName', 'StockCode'])[['Qty', 'Amount']].sum().reset_index().sort_values('Qty', ascending=False).head(10)
-            st.dataframe(top_qty.style.format({'Amount': '{:,.0f}'}), use_container_width=True)
-        with c2:
-            st.subheader("💎 الأكثر ربحية")
-            top_profit = df_filtered.groupby(['StockName', 'StockCode'])[['Profit', 'Amount']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
-            st.dataframe(top_profit.style.format({'Profit': '{:,.0f}', 'Amount': '{:,.0f}'}).background_gradient(subset=['Profit'], cmap='Greens'), use_container_width=True)
+        st.subheader("📦 تقرير الأصناف الشامل (300+ صنف)")
+        
+        # تجميع البيانات لكل الأصناف (بدون .head)
+        items_summary = df_filtered.groupby(['StockName', 'StockCode', 'stockgroup']).agg(
+            الكمية=('Qty', 'sum'),
+            المبيعات=('Amount', 'sum'),
+            الربح=('Profit', 'sum'),
+            عدد_مرات_البيع=('TransCode', 'nunique')
+        ).reset_index()
+        
+        # المعادلات
+        items_summary['هامش_%'] = (items_summary['الربح'] / items_summary['المبيعات'] * 100).fillna(0)
+        items_summary['تصريف_شهري'] = items_summary['الكمية'] / months_diff
+        items_summary['ربح_شهري'] = items_summary['الربح'] / months_diff
+        
+        # ترتيب افتراضي
+        items_summary = items_summary.sort_values('الربح', ascending=False)
+        
+        # زر التصدير للإكسل (CSV يدعم العربية)
+        csv = items_summary.to_csv(index=False).encode('utf-8-sig')
+        
+        col_export, col_space = st.columns([1, 4])
+        with col_export:
+            st.download_button(
+                label="📥 تحميل التقرير (Excel/CSV)",
+                data=csv,
+                file_name="تقرير_ارباح_الاصناف.csv",
+                mime="text/csv",
+                help="اضغط للتحميل، الملف يفتح مباشرة في إكسل"
+            )
+
+        # عرض الجدول (كبير وتفاعلي)
+        st.dataframe(
+            items_summary,
+            column_config={
+                "StockName": "الصنف",
+                "stockgroup": "الماركة",
+                "المبيعات": st.column_config.NumberColumn(format="%d"),
+                "الربح": st.column_config.NumberColumn(format="%d"),
+                "هامش_%": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
+                "تصريف_شهري": st.column_config.NumberColumn(format="%.1f"),
+            },
+            use_container_width=True,
+            height=600  # ارتفاع كبير ليعرض عدد كبير من الصفوف
+        )
 
 else:
-    st.info("👈 ارفع الملفات.. وتمتع بالأرقام الصحيحة!")
+    st.info("👈 النظام جاهز.. ارفع الملفات!")
