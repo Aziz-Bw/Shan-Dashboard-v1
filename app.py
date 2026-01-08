@@ -12,20 +12,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 🎨 تصميم الأنيميشن والهوية (Magic CSS) ---
+# --- 🎨 التصميم (CSS) - إصلاح الألوان والتباين ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
 
+    /* تطبيق الخط وتوحيد الأساسيات */
     html, body, [class*="css"] {
         font-family: 'Tajawal', sans-serif;
-        scroll-behavior: smooth;
     }
 
+    /* تعريف الألوان الصلبة (لا تتأثر بوضع الجهاز) */
     :root {
         --brand-blue: #034275;
-        --brand-accent: #27ae60;
-        --bg-color: #f8f9fa;
+        --brand-dark: #2c3e50;
+        --brand-text: #333333; /* لون نص غامق ثابت */
+        --card-bg: #ffffff;    /* خلفية بيضاء ثابتة */
     }
 
     /* إخفاء العناصر المزعجة */
@@ -33,84 +35,123 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* --- 🎥 تعريف حركات الأنيميشن (The Magic) --- */
-    
-    /* حركة الظهور الناعم من الأسفل (لصفوف الداشبورد) */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+    /* --- تنسيق الحاويات --- */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
     }
 
-    /* حركة التلاشي (للترحيب) */
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-
-    /* تطبيق الحركات بتأخير زمني (Lego Effect) */
-    .row-1 { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; animation-delay: 0.1s; } /* العنوان */
-    .row-2 { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; animation-delay: 0.3s; } /* الفلاتر */
-    .row-3 { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; animation-delay: 0.5s; } /* الأرقام */
-    .row-4 { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; animation-delay: 0.7s; } /* البائعين */
-    .row-5 { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; animation-delay: 0.9s; } /* الرسوم */
-    .row-6 { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; animation-delay: 1.1s; } /* الجداول */
-
-    /* --- تصميم العناصر --- */
-
-    /* حاوية الفلاتر */
-    .filters-container {
-        background-color: white;
+    /* حاوية الفلاتر العلوية */
+    .filters-box {
+        background-color: var(--card-bg);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border-top: 4px solid var(--brand-blue);
         margin-bottom: 25px;
     }
 
-    /* البطاقات */
-    .metric-container {
-        background: white; border-radius: 12px; padding: 20px; text-align: center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.04); border: 1px solid #eee;
-        height: 150px; display: flex; flex-direction: column; justify-content: center;
-        transition: transform 0.3s ease;
+    /* --- تصميم البطاقات (KPIs) --- */
+    /* نستخدم !important لإجبار الألوان وتجاهل الوضع الليلي */
+    .metric-card {
+        background-color: var(--card-bg) !important;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
     }
-    .metric-container:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
-    .metric-value { font-size: 28px; font-weight: 800; margin: 5px 0; color: var(--brand-blue); }
-    .metric-label { font-size: 14px; color: #666; font-weight: bold; }
     
-    /* بطاقات البائعين */
-    .salesman-box {
-        background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.04); border-right: 5px solid var(--brand-blue);
-        direction: rtl; transition: all 0.3s ease;
+    .metric-label {
+        color: #666666 !important;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 8px;
     }
-    .salesman-box:hover { transform: scale(1.02); }
+    
+    .metric-value {
+        color: var(--brand-blue) !important;
+        font-size: 24px;
+        font-weight: 800;
+        margin: 0;
+        direction: ltr; /* لضمان ظهور الأرقام بشكل صحيح */
+    }
+    
+    .metric-sub {
+        color: #888888 !important;
+        font-size: 12px;
+        margin-top: 5px;
+    }
 
-    /* شاشة الترحيب */
-    .welcome-container {
-        text-align: center; margin-top: 100px;
-        animation: fadeIn 1.5s ease-in;
+    /* --- بطاقات البائعين (Salesman) --- */
+    .salesman-box {
+        background-color: var(--card-bg) !important;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        border-right: 5px solid var(--brand-blue);
+        margin-bottom: 15px;
+        direction: rtl;
     }
-    .input-container { max-width: 400px; margin: 0 auto; }
+
+    .s-header {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+        text-align: right;
+    }
+    
+    .s-name {
+        color: var(--brand-blue) !important;
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    /* صفوف البيانات داخل البطاقة */
+    .s-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        direction: rtl;
+    }
+    
+    /* إجبار النصوص داخل البطاقة على اللون الغامق */
+    .s-label {
+        color: #555555 !important;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .s-val {
+        color: #333333 !important;
+        font-size: 15px;
+        font-weight: 700;
+        font-family: 'Tajawal', sans-serif;
+    }
+
+    /* أنيميشن الدخول */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+        animation: fadeIn 0.6s ease-out forwards;
+    }
 
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. إدارة الحالة (Session State) ---
-# نستخدم هذا لتتبع "نحن في أي صفحة؟"
-if 'page' not in st.session_state:
-    st.session_state['page'] = 'login' # login -> upload -> dashboard
+# --- 2. إدارة الحالة ---
+if 'page' not in st.session_state: st.session_state['page'] = 'login'
+if 'uploaded_files' not in st.session_state: st.session_state['uploaded_files'] = None
 
-if 'uploaded_files' not in st.session_state:
-    st.session_state['uploaded_files'] = None
-
-# --- 3. الدوال المساعدة ---
+# --- 3. المعالجة ---
 def normalize_salesman_name(name):
     if pd.isna(name) or name == 'nan' or name == 'غير محدد': return 'غير محدد'
     name = str(name).strip()
@@ -143,7 +184,6 @@ def load_auto_data(file_header, file_items):
         else: df_header['Header_SalesMan'] = ''
 
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
-        
         if 'TaxbleAmount' in df_items.columns: df_items['Amount'] = pd.to_numeric(df_items['TaxbleAmount'], errors='coerce').fillna(0)
         elif 'BasicStockAmount' in df_items.columns: df_items['Amount'] = pd.to_numeric(df_items['BasicStockAmount'], errors='coerce').fillna(0)
         else: df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0) / 1.15
@@ -169,7 +209,6 @@ def load_auto_data(file_header, file_items):
         mask_return = full_data['VoucherName'].str.contains('Return|مرتجع', case=False, na=False)
         full_data.loc[mask_return, 'Amount'] = full_data.loc[mask_return, 'Amount'] * -1
         full_data.loc[mask_return, 'TotalCost'] = full_data.loc[mask_return, 'TotalCost'] * -1
-        
         full_data['Profit'] = full_data['Amount'] - full_data['TotalCost']
         
         if 'stockgroup' not in full_data.columns: full_data['stockgroup'] = 'عام'
@@ -177,39 +216,32 @@ def load_auto_data(file_header, file_items):
         return full_data.dropna(subset=['Date'])
     except Exception as e: st.error(f"Error: {e}"); return None
 
+# --- 4. واجهة المستخدم ---
 
-# --- 4. محرك السيناريو (The Logic Engine) ---
-
-# >> المشهد 1: تسجيل الدخول <<
+# >> صفحة الدخول <<
 if st.session_state['page'] == 'login':
-    st.markdown("""
-    <div class="welcome-container">
-        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" width="120">
-        <h1 style="color:#034275; margin-top:20px;">شان الحديثة | Shan Modern</h1>
-        <p style="color:#666;">نظام ذكاء الأعمال والتحليل المالي</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        password = st.text_input("🔒 كلمة المرور", type="password", placeholder="أدخل الرمز هنا...")
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.markdown("""
+        <div style="text-align: center; padding: 40px;">
+            <h1 style="color:#034275;">شان الحديثة | Shan Modern</h1>
+            <p style="color:#666;">نظام ذكاء الأعمال المتقدم</p>
+        </div>
+        """, unsafe_allow_html=True)
+        password = st.text_input("🔑 أدخل رمز المرور", type="password")
         if password:
             if password == st.secrets["PASSWORD"]:
                 st.session_state['page'] = 'upload'
                 st.rerun()
             else:
-                st.error("رمز غير صحيح")
+                st.error("الرمز غير صحيح")
 
-# >> المشهد 2: رفع الملفات <<
+# >> صفحة الرفع <<
 elif st.session_state['page'] == 'upload':
     st.markdown("""
-    <div class="welcome-container" style="margin-top:50px;">
-        <h2 style="color:#034275;">📤 استيراد البيانات</h2>
-        <p style="font-size:16px; color:#555; max-width:600px; margin:0 auto; line-height:1.6;">
-            يرجى رفع ملفات XML المستخرجة من النسخ الاحتياطي لنظام المبيعات الخاص بشركة شان.
-            سيتم معالجة البيانات وبناء لوحة المعلومات تلقائياً.
-        </p>
-        <br>
+    <div style="text-align: center; margin-bottom: 30px;" class="animate-in">
+        <h2 style="color:#034275;">📂 استيراد البيانات</h2>
+        <p style="color:#555;">يرجى رفع ملفات XML من النسخ الاحتياطي للنظام</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -221,61 +253,42 @@ elif st.session_state['page'] == 'upload':
         if f1 and f2:
             st.session_state['uploaded_files'] = (f1, f2)
             st.session_state['page'] = 'dashboard'
-            with st.spinner("جاري بناء لوحة المعلومات..."):
-                time.sleep(1.5) # تأثير بسيط للتشويق
+            st.success("تم التحقق من الملفات.. جاري بناء اللوحة")
+            time.sleep(1)
             st.rerun()
 
-# >> المشهد 3: الداشبورد الفخم (The Dashboard) <<
+# >> الداشبورد <<
 elif st.session_state['page'] == 'dashboard':
-    
     f1, f2 = st.session_state['uploaded_files']
     df = load_auto_data(f1, f2)
     
     if df is not None:
-        
-        # --- زر الإعدادات المخفي (الترس) ---
-        # يظهر في الأعلى لإعادة الرفع إذا لزم الأمر
-        with st.container():
-             c_title, c_gear = st.columns([9, 1])
-             with c_gear:
-                 with st.popover("⚙️ إعدادات"):
-                     st.write("إعادة ضبط البيانات:")
-                     if st.button("تسجيل الخروج / إعادة الرفع"):
-                         st.session_state['uploaded_files'] = None
-                         st.session_state['page'] = 'upload'
-                         st.rerun()
+        # رأس الصفحة مع زر الإعدادات
+        head_c1, head_c2 = st.columns([10, 1])
+        with head_c1:
+            st.markdown("<h2 style='color:#034275; margin:0;'>📊 لوحة المعلومات المالية</h2>", unsafe_allow_html=True)
+        with head_c2:
+            with st.popover("⚙️"):
+                if st.button("تسجيل الخروج"):
+                    st.session_state['uploaded_files'] = None
+                    st.session_state['page'] = 'login'
+                    st.rerun()
 
-        # --- الصف 1: العنوان والشعار (Lego Row 1) ---
-        st.markdown('<div class="row-1">', unsafe_allow_html=True)
-        h_col1, h_col2 = st.columns([1, 8])
-        with h_col1:
-            st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=70)
-        with h_col2:
-            st.markdown("<h2 style='margin:0; padding-top:10px;'>لوحة المعلومات المالية والفنية</h2>", unsafe_allow_html=True)
-            st.markdown("<p style='color:grey;'>Shan Modern Trading Co. | Live Data View</p>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # --- الصف 2: الفلاتر (Lego Row 2) ---
-        st.markdown('<div class="row-2">', unsafe_allow_html=True)
-        st.markdown('<div class="filters-container">', unsafe_allow_html=True)
-        
+        # الفلاتر العلوية
+        st.markdown('<div class="filters-box animate-in">', unsafe_allow_html=True)
         min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
-        f_c1, f_c2 = st.columns(2)
-        with f_c1:
+        fc1, fc2 = st.columns(2)
+        with fc1:
             d_range = st.date_input("📅 الفترة الزمنية", [min_d, max_d])
-        with f_c2:
+        with fc2:
             salesman_list = ['الكل'] + sorted(list(df['SalesMan_Clean'].astype(str).unique()))
-            salesman_filter = st.selectbox("👤 الموظف المسؤول", salesman_list)
-        
-        st.markdown('</div></div>', unsafe_allow_html=True)
+            salesman_filter = st.selectbox("👤 الموظف", salesman_list)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # تطبيق الفلاتر
         df_filtered = df.copy()
         if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
             df_filtered = df_filtered[(df_filtered['Date'].dt.date >= d_range[0]) & (df_filtered['Date'].dt.date <= d_range[1])]
-        
         if salesman_filter != 'الكل':
             df_filtered = df_filtered[df_filtered['SalesMan_Clean'] == salesman_filter]
 
@@ -289,104 +302,102 @@ elif st.session_state['page'] == 'dashboard':
         days_diff = (d_range[1] - d_range[0]).days if isinstance(d_range, (list, tuple)) and len(d_range) == 2 else 1
         months_diff = max(days_diff / 30, 1)
 
-        # --- الصف 3: المؤشرات (Lego Row 3) ---
-        st.markdown('<div class="row-3">', unsafe_allow_html=True)
+        # 1. المؤشرات (Cards)
         k1, k2, k3, k4, k5 = st.columns(5)
         
-        def metric_card(title, value, sub, color="#034275"):
+        # HTML نظيف جداً لتجنب الأخطاء
+        def card_html(label, value, sub, color="#034275"):
             return f"""
-            <div class="metric-container">
-                <div class="metric-label">{title}</div>
+            <div class="metric-card animate-in">
+                <div class="metric-label">{label}</div>
                 <div class="metric-value" style="color: {color} !important;">{value}</div>
                 <div class="metric-sub">{sub}</div>
             </div>
             """
 
-        with k1: st.markdown(metric_card("صافي المبيعات", f"{net_sales:,.0f}", "الإيراد الفعلي"), unsafe_allow_html=True)
-        with k2: st.markdown(metric_card("تكلفة البضاعة", f"{total_cost:,.0f}", "Cost of Goods"), unsafe_allow_html=True)
-        with k3: st.markdown(metric_card("إجمالي الإرجاعات", f"{returns_val:,.0f}", "مخصومة", "#c0392b"), unsafe_allow_html=True)
-        with k4: st.markdown(metric_card("صافي الأرباح", f"{total_profit:,.0f}", f"{margin:.1f}% هامش", "#27ae60"), unsafe_allow_html=True)
-        with k5: st.markdown(metric_card("المتوسط الشهري", f"{net_sales/months_diff:,.0f}", "معدل الأداء"), unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        with k1: st.markdown(card_html("صافي المبيعات", f"{net_sales:,.0f}", "الإيراد الفعلي"), unsafe_allow_html=True)
+        with k2: st.markdown(card_html("تكلفة البضاعة", f"{total_cost:,.0f}", "Cost"), unsafe_allow_html=True)
+        with k3: st.markdown(card_html("إجمالي الإرجاعات", f"{returns_val:,.0f}", "مخصومة", "#c0392b"), unsafe_allow_html=True)
+        with k4: st.markdown(card_html("صافي الأرباح", f"{total_profit:,.0f}", f"{margin:.1f}% هامش", "#27ae60"), unsafe_allow_html=True)
+        with k5: st.markdown(card_html("المتوسط الشهري", f"{net_sales/months_diff:,.0f}", "معدل الأداء"), unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("---")
 
-        # --- الصف 4: البائعين (Lego Row 4) ---
-        st.markdown('<div class="row-4">', unsafe_allow_html=True)
+        # 2. أداء الفريق
         st.subheader("👥 أداء الفريق")
-        
         unique_salesmen = [sm for sm in df_filtered['SalesMan_Clean'].unique() if sm != 'غير محدد']
         cols = st.columns(3)
         
-        def draw_salesman_box(col, name, data, is_total=False):
+        def draw_salesman(col, name, data, is_total=False):
             s_sales = data['Amount'].sum()
             s_profit = data['Profit'].sum()
             s_margin = (s_profit / s_sales * 100) if s_sales > 0 else 0
-            s_ret_val = abs(data[data['Amount'] < 0]['Amount'].sum())
+            s_ret = abs(data[data['Amount'] < 0]['Amount'].sum())
             s_gross = data[data['Amount'] > 0]['Amount'].sum()
-            s_ret_rate = (s_ret_val / s_gross * 100) if s_gross > 0 else 0
+            s_ret_rate = (s_ret / s_gross * 100) if s_gross > 0 else 0
             
-            border_color = "#27ae60" if is_total else "#034275"
-            name_color = "#333" if is_total else "#034275"
+            border = "#27ae60" if is_total else "#034275"
+            name_col = "#333" if is_total else "#034275"
             
-            with col:
-                st.markdown(f"""
-                <div class="salesman-box" style="border-right: 5px solid {border_color};">
-                    <div class="s-header">
-                        <div class="s-name" style="color: {name_color};">{name}</div>
-                        {'<span style="font-size:12px; background:#eee; padding:2px 6px; border-radius:4px;">الإجمالي</span>' if is_total else ''}
-                    </div>
-                    <div class="s-row"><span style="color:#555;">💰 المبيعات:</span><span class="s-val">{s_sales:,.0f}</span></div>
-                    <div class="s-row"><span style="color:#555;">📈 الربح:</span><span class="s-val" style="color:#27ae60">{s_profit:,.0f} ({s_margin:.1f}%)</span></div>
-                    <div class="s-row" style="border-top:1px dashed #ddd; padding-top:5px; margin-top:5px;">
-                        <span style="color:#c0392b">↩️ الإرجاع:</span>
-                        <span class="s-val" style="color:#c0392b">{s_ret_val:,.0f} ({s_ret_rate:.1f}%)</span>
-                    </div>
+            # HTML بدون مسافات بادئة زائدة لتجنب مشاكل التفسير
+            html_content = f"""
+            <div class="salesman-box" style="border-right: 5px solid {border};">
+                <div class="s-header">
+                    <div class="s-name" style="color:{name_col} !important">{name}</div>
                 </div>
-                """, unsafe_allow_html=True)
+                <div class="s-row">
+                    <span class="s-label">المبيعات:</span>
+                    <span class="s-val">{s_sales:,.0f}</span>
+                </div>
+                <div class="s-row">
+                    <span class="s-label">الربح:</span>
+                    <span class="s-val" style="color:#27ae60 !important">{s_profit:,.0f} ({s_margin:.1f}%)</span>
+                </div>
+                <div class="s-row" style="border-top:1px dashed #ddd; margin-top:8px; padding-top:5px;">
+                    <span class="s-label" style="color:#c0392b !important">الإرجاع:</span>
+                    <span class="s-val" style="color:#c0392b !important">{s_ret:,.0f} ({s_ret_rate:.1f}%)</span>
+                </div>
+            </div>
+            """
+            with col:
+                st.markdown(html_content, unsafe_allow_html=True)
 
         curr_idx = 0
         for sm in unique_salesmen:
             if curr_idx < 2:
-                draw_salesman_box(cols[curr_idx], sm, df_filtered[df_filtered['SalesMan_Clean'] == sm])
+                draw_salesman(cols[curr_idx], sm, df_filtered[df_filtered['SalesMan_Clean'] == sm])
                 curr_idx += 1
-        draw_salesman_box(cols[2], "إجمالي الفريق", df_filtered, is_total=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        draw_salesman(cols[2], "إجمالي الفريق", df_filtered, is_total=True)
 
-        # --- الصف 5: الرسوم (Lego Row 5) ---
-        st.markdown('<div class="row-5">', unsafe_allow_html=True)
+        # 3. الرسوم والجداول
         st.markdown("---")
         tab1, tab2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
         with tab1:
             daily = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
             fig = px.line(daily, x='Date', y=['Amount', 'Profit'], markers=True, color_discrete_map={'Amount': '#034275', 'Profit': '#27ae60'})
-            fig.update_layout(plot_bgcolor="white", paper_bgcolor="white")
+            fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font={'color': '#333'})
             st.plotly_chart(fig, use_container_width=True)
         with tab2:
             gp = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
             fig_pie = px.pie(gp, values='Profit', names='stockgroup', hole=0.5, color_discrete_sequence=px.colors.sequential.Blues_r)
             st.plotly_chart(fig_pie, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- الصف 6: الجداول (Lego Row 6) ---
-        st.markdown('<div class="row-6">', unsafe_allow_html=True)
+        # 4. التقرير
         st.markdown("---")
         c1, c2 = st.columns([3, 1])
-        with c1: st.subheader("📦 تقرير المخزون الشامل")
+        with c1: st.subheader("📦 تقرير المخزون")
         
         items_sum = df_filtered.groupby(['StockName', 'StockCode', 'stockgroup']).agg(
             الكمية=('Qty', 'sum'),
             المبيعات=('Amount', 'sum'),
             الربح=('Profit', 'sum')
         ).reset_index()
-        
         items_sum['هامش_%'] = (items_sum['الربح'] / items_sum['المبيعات'] * 100).fillna(0)
         items_sum['تصريف_شهري'] = items_sum['الكمية'] / months_diff
         items_sum = items_sum.sort_values('الربح', ascending=False)
         
         with c2:
             csv = items_sum.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📥 تحميل التقرير (Excel)", data=csv, file_name="Shan_Report.csv", mime="text/csv")
+            st.download_button("📥 تحميل التقرير", data=csv, file_name="Shan_Report.csv", mime="text/csv")
 
         st.dataframe(items_sum, use_container_width=True, height=600)
-        st.markdown('</div>', unsafe_allow_html=True)
