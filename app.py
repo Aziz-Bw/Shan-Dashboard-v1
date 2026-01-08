@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import xml.etree.ElementTree as ET
 
-# --- 1. إعدادات الصفحة (التصميم الافتراضي النظيف) ---
+# --- 1. إعدادات الصفحة (التصميم الخام النظيف) ---
 st.set_page_config(
     page_title="مدير شان الحديثة",
     layout="wide",
@@ -11,29 +11,37 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS بسيط فقط لضبط الاتجاه (RTL) والخط ---
+# --- CSS بسيط فقط للخط والاتجاه (بدون ألوان معقدة) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+    
     html, body, [class*="css"] {
         font-family: 'Tajawal', sans-serif;
         direction: rtl;
     }
-    /* تعديل بسيط لعنوان القوائم ليكون يمين */
-    .stSelectbox label, .stTextInput label, .stDateInput label {
-        text-align: right;
+    
+    /* تنسيق بسيط للعناوين */
+    h1, h2, h3 {
+        font-family: 'Tajawal', sans-serif;
     }
-    /* إخفاء القوائم غير المهمة */
+    
+    /* محاذاة النصوص لليمين */
+    .stSelectbox, .stTextInput, .stNumberInput {
+        direction: rtl;
+    }
+    
+    /* إخفاء القوائم غير الضرورية */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. إدارة الحالة ---
+# --- 2. إدارة الحالة (Session State) ---
 if 'uploaded_files' not in st.session_state: st.session_state['uploaded_files'] = None
 if 'ledger_file' not in st.session_state: st.session_state['ledger_file'] = None
 
-# --- 3. دوال المعالجة ---
+# --- 3. دوال المعالجة (النسخة المستقرة) ---
 def normalize_name(name):
     if pd.isna(name): return "غير محدد"
     return str(name).strip()
@@ -41,7 +49,10 @@ def normalize_name(name):
 @st.cache_data(ttl=3600)
 def load_sales_data(file_header, file_items):
     try:
-        file_header.seek(0); file_items.seek(0)
+        # إعادة مؤشر الملف للبداية (مهم جداً لعدم اختفاء البيانات)
+        file_header.seek(0)
+        file_items.seek(0)
+        
         tree_h = ET.parse(file_header); df_header = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_h.getroot()])
         tree_i = ET.parse(file_items); df_items = pd.DataFrame([{child.tag: child.text for child in row} for row in tree_i.getroot()])
         
@@ -52,6 +63,8 @@ def load_sales_data(file_header, file_items):
         else: df_header['Header_SalesMan'] = 'عام'
 
         df_items['Qty'] = pd.to_numeric(df_items['TotalQty'], errors='coerce').fillna(0)
+        
+        # منطق المبيعات الدقيق
         if 'TaxbleAmount' in df_items.columns: df_items['Amount'] = pd.to_numeric(df_items['TaxbleAmount'], errors='coerce').fillna(0)
         else: df_items['Amount'] = pd.to_numeric(df_items['netStockAmount'], errors='coerce').fillna(0) / 1.15
 
@@ -59,17 +72,21 @@ def load_sales_data(file_header, file_items):
         df_items['CostUnit'] = pd.to_numeric(df_items.get(cost_col, 0), errors='coerce').fillna(0)
         df_items['TotalCost'] = df_items['CostUnit'] * df_items['Qty']
         
+        # الدمج
         full_data = pd.merge(df_items, df_header[['TransCode', 'Date', 'InvoiceNo', 'Header_SalesMan', 'VoucherName']], on='TransCode', how='inner')
         full_data['SalesMan'] = full_data['Header_SalesMan'].apply(normalize_name)
         
+        # المرتجعات
         mask_return = full_data['VoucherName'].str.contains('Return|مرتجع', case=False, na=False)
         full_data.loc[mask_return, 'Amount'] *= -1
         full_data.loc[mask_return, 'TotalCost'] *= -1
         full_data['Profit'] = full_data['Amount'] - full_data['TotalCost']
         
         if 'stockgroup' not in full_data.columns: full_data['stockgroup'] = 'عام'
+        
         return full_data
-    except Exception as e: return None
+    except Exception as e:
+        return None
 
 @st.cache_data(ttl=3600)
 def load_ledger_data(file_ledger):
@@ -86,25 +103,28 @@ def load_ledger_data(file_ledger):
 
 # --- 4. القائمة الجانبية ---
 with st.sidebar:
-    st.header("لوحة التحكم")
-    page = st.radio("تنقل بين الأقسام:", ["💰 المبيعات", "💸 التحصيل والديون"])
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80)
+    st.title("لوحة التحكم")
+    page = st.radio("الأقسام:", ["💰 المبيعات والأرباح", "💸 التحصيل والديون"])
     
     st.markdown("---")
-    if page == "💰 المبيعات":
-        st.info("ارفع ملفات المبيعات")
+    
+    if page == "💰 المبيعات والأرباح":
+        st.info("📂 ملفات المبيعات")
         f1 = st.file_uploader("StockInvoiceDetails.xml", type=['xml'], key="f1")
         f2 = st.file_uploader("StockInvoiceRowItems.xml", type=['xml'], key="f2")
         if f1 and f2: st.session_state['uploaded_files'] = (f1, f2)
-    else:
-        st.info("ارفع ملف التحصيل")
+        
+    elif page == "💸 التحصيل والديون":
+        st.info("📂 ملف التحصيل")
         f3 = st.file_uploader("LedgerBook.xml", type=['xml'], key="f3")
         if f3: st.session_state['ledger_file'] = f3
 
 # ========================================================
-# الصفحة 1: المبيعات (التصميم الأصلي النظيف)
+# الصفحة 1: المبيعات (التصميم الأصلي المستقر)
 # ========================================================
-if page == "💰 المبيعات":
-    st.title("💰 المبيعات والأداء المالي")
+if page == "💰 المبيعات والأرباح":
+    st.header("💰 تحليل المبيعات والأرباح")
     
     if st.session_state['uploaded_files']:
         f1, f2 = st.session_state['uploaded_files']
@@ -129,73 +149,68 @@ if page == "💰 المبيعات":
                 
             st.markdown("---")
             
-            # المؤشرات (Metrics) - التصميم الافتراضي الجميل
-            # نحسب القيم
+            # المؤشرات
             sales = df_sub['Amount'].sum()
             profit = df_sub['Profit'].sum()
             cost = df_sub['TotalCost'].sum()
             margin = (profit / sales * 100) if sales > 0 else 0
-            
             ret_val = abs(df_sub[df_sub['Amount']<0]['Amount'].sum())
             ret_count = df_sub[df_sub['Amount']<0]['TransCode'].nunique()
             inv_count = df_sub[df_sub['Amount']>0]['TransCode'].nunique()
             
-            # الصف الأول
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("صافي المبيعات", f"{sales:,.0f} ر.س")
-            m2.metric("صافي الربح", f"{profit:,.0f} ر.س", f"{margin:.1f}%")
-            m3.metric("تكلفة البضاعة", f"{cost:,.0f} ر.س")
-            m4.metric("قيمة المرتجعات", f"{ret_val:,.0f} ر.س", f"عدد: {ret_count}")
+            # عرض المؤشرات (Standard Streamlit Metrics)
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("صافي المبيعات", f"{sales:,.0f}")
+            m2.metric("صافي الربح", f"{profit:,.0f}", f"{margin:.1f}%")
+            m3.metric("تكلفة البضاعة", f"{cost:,.0f}")
+            m4.metric("المرتجعات", f"{ret_val:,.0f}", f"عدد: {ret_count}")
+            m5.metric("عدد الفواتير", f"{inv_count}")
             
             st.markdown("---")
             
             # الرسوم البيانية
             g1, g2 = st.columns(2)
             with g1:
-                st.subheader("تحليل البائعين")
-                # تجميع حسب البائع
+                st.subheader("أداء البائعين")
                 s_perf = df_sub.groupby('SalesMan')[['Amount', 'Profit']].sum().reset_index()
-                fig = px.bar(s_perf, x='SalesMan', y=['Amount', 'Profit'], barmode='group', title="المبيعات والربح لكل بائع")
+                fig = px.bar(s_perf, x='SalesMan', y=['Amount', 'Profit'], barmode='group')
                 st.plotly_chart(fig, use_container_width=True)
                 
             with g2:
-                st.subheader("الأكثر مبيعاً")
-                # تجميع حسب الصنف
+                st.subheader("تحليل الأصناف")
                 top_items = df_sub.groupby('StockName')['Qty'].sum().reset_index().sort_values('Qty', ascending=False).head(10)
                 st.dataframe(top_items, use_container_width=True, hide_index=True)
 
     else:
-        st.warning("الرجاء رفع ملفات المبيعات من القائمة الجانبية.")
+        st.warning("⚠️ الرجاء رفع ملفات المبيعات من القائمة الجانبية.")
 
 # ========================================================
-# الصفحة 2: التحصيل والديون (المنطق الذكي الجديد)
+# الصفحة 2: التحصيل والديون (المنطق الذكي + استبعاد البنوك)
 # ========================================================
 elif page == "💸 التحصيل والديون":
-    st.title("💸 مراقبة الديون والعملاء")
+    st.header("💸 مراقبة الديون والعملاء")
     
     if st.session_state['ledger_file']:
         df_ledger = load_ledger_data(st.session_state['ledger_file'])
         
         if df_ledger is not None:
-            # --- الخوارزمية الذكية لكشف العملاء ---
-            # 1. البحث عن الحسابات التي تعاملت في "ايرادات المبيعات"
-            # نبحث عن كلمة "مبيعات" في عمود AcLedger (كما اكتشفت أنت)
-            
-            target_keyword = "مبيعات" # كلمة مفتاحية
-            
+            # --- 1. الكشف الذكي عن العملاء ---
+            # نبحث عن الحسابات التي لديها عمليات "إيرادات مبيعات"
             if 'AcLedger' in df_ledger.columns:
-                # نحدد من هم العملاء؟ هم الذين ظهر اسمهم في عمليات المبيعات
-                sales_transactions = df_ledger[df_ledger['AcLedger'].astype(str).str.contains(target_keyword, na=False)]
-                valid_customers_list = sales_transactions['LedgerName'].unique()
+                sales_transactions = df_ledger[df_ledger['AcLedger'].astype(str).str.contains("إيرادات المبيعات|مبيعات", na=False)]
+                valid_customers_list = sales_transactions['LedgerName'].unique().tolist()
                 
-                if len(valid_customers_list) > 0:
-                    st.success(f"✅ تم التعرف على {len(valid_customers_list)} عميل من خلال سجلات المبيعات.")
+                # --- 2. الاستبعاد اليدوي (Blacklist) ---
+                # هنا نستبعد البنوك وأي حسابات غير مرغوبة ظهرت بالخطأ
+                exclude_list = ["مصرف الراجحي", "البنك الأهلي", "صندوق", "نقدية", "شبكة"]
+                
+                final_customers = [c for c in valid_customers_list if not any(ex in c for ex in exclude_list)]
+                
+                if len(final_customers) > 0:
+                    # --- 3. حساب الأرصدة ---
+                    # نأخذ كامل العمليات لهؤلاء العملاء فقط
+                    customers_full_data = df_ledger[df_ledger['LedgerName'].isin(final_customers)]
                     
-                    # 2. تصفية الجدول الكامل لهؤلاء العملاء فقط
-                    # (عشان نحسب رصيدهم الكامل بما فيه السندات والمدفوعات اللي ممكن تكون تحت مسميات أخرى)
-                    customers_full_data = df_ledger[df_ledger['LedgerName'].isin(valid_customers_list)]
-                    
-                    # 3. التجميع والحساب
                     cust_summary = customers_full_data.groupby('LedgerName').agg(
                         Total_Debit=('Dr', 'sum'),
                         Total_Credit=('Cr', 'sum')
@@ -203,40 +218,46 @@ elif page == "💸 التحصيل والديون":
                     
                     cust_summary['Balance'] = cust_summary['Total_Debit'] - cust_summary['Total_Credit']
                     
-                    # تصفية الديون (أكبر من 10 ريال)
+                    # تصفية: نأخذ فقط من عليه دين (أكثر من 10 ريال)
                     debtors = cust_summary[cust_summary['Balance'] > 10].sort_values('Balance', ascending=False)
                     
                     # --- عرض النتائج ---
                     total_debt = debtors['Balance'].sum()
                     count_debtors = len(debtors)
                     
+                    st.success(f"تم تحديد {count_debtors} عميل عليهم مديونيات قائمة.")
+                    
                     k1, k2 = st.columns(2)
                     k1.metric("إجمالي الديون (في السوق)", f"{total_debt:,.0f} ر.س")
-                    k2.metric("عدد العملاء المدينين", f"{count_debtors} عميل")
+                    k2.metric("عدد العملاء المدينين", f"{count_debtors}")
                     
                     st.markdown("### 📊 تفاصيل الديون")
                     
-                    # رسم بياني لأعلى 15 عميل
-                    top_15 = debtors.head(15)
-                    fig = px.bar(top_15, x='LedgerName', y='Balance', text_auto='.2s', title="أعلى 15 مديونية")
-                    st.plotly_chart(fig, use_container_width=True)
+                    c1, c2 = st.columns([2, 1])
+                    with c1:
+                        # رسم بياني لأعلى 15 عميل
+                        top_15 = debtors.head(15)
+                        fig = px.bar(top_15, x='LedgerName', y='Balance', text_auto='.2s', 
+                                     title="أعلى 15 مديونية", color='Balance', color_continuous_scale='Reds')
+                        st.plotly_chart(fig, use_container_width=True)
                     
-                    # الجدول التفصيلي
-                    st.dataframe(
-                        debtors,
-                        column_config={
-                            "LedgerName": "اسم العميل",
-                            "Total_Debit": st.column_config.NumberColumn("المسحوبات", format="%d"),
-                            "Total_Credit": st.column_config.NumberColumn("المدفوعات", format="%d"),
-                            "Balance": st.column_config.NumberColumn("الرصيد المتبقي (دين)", format="%d"),
-                        },
-                        use_container_width=True,
-                        height=600
-                    )
+                    with c2:
+                        # الجدول التفصيلي
+                        st.dataframe(
+                            debtors,
+                            column_config={
+                                "LedgerName": "اسم العميل",
+                                "Total_Debit": st.column_config.NumberColumn("المسحوبات", format="%d"),
+                                "Total_Credit": st.column_config.NumberColumn("المدفوعات", format="%d"),
+                                "Balance": st.column_config.NumberColumn("الرصيد المتبقي (دين)", format="%d"),
+                            },
+                            use_container_width=True,
+                            height=500
+                        )
                     
                 else:
-                    st.warning("لم يتم العثور على عمليات تحتوي كلمة 'مبيعات' في عمود AcLedger.")
+                    st.warning("لم يتم العثور على عملاء مطابقين.")
             else:
                 st.error("لم يتم العثور على عمود AcLedger في الملف.")
     else:
-        st.warning("الرجاء رفع ملف LedgerBook.xml من القائمة الجانبية.")
+        st.warning("⚠️ الرجاء رفع ملف LedgerBook.xml من القائمة الجانبية.")
