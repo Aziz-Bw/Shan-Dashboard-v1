@@ -3,70 +3,93 @@ import pandas as pd
 import plotly.express as px
 import xml.etree.ElementTree as ET
 
-# --- 1. إعدادات الهوية والبناء ---
+# --- 1. إعدادات الصفحة والهوية ---
 st.set_page_config(
-    page_title="شان الحديثة | لوحة المعلومات", 
+    page_title="Shan Modern | شان الحديثة", 
     layout="wide", 
     page_icon="🏢"
 )
 
-# --- 🎨 تصميم الهوية البصرية (Custom CSS) ---
+# --- 🎨 تصميم الهوية البصرية (Shan Modern Identity) ---
 st.markdown("""
 <style>
-    /* 1. خلفية التطبيق */
-    .stApp {
-        background-color: #f8f9fa;
+    /* استيراد خطوط عربية جميلة */
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Tajawal', sans-serif;
     }
-    
-    /* 2. تحسين العناوين */
+
+    /* الألوان الأساسية للهوية */
+    :root {
+        --brand-blue: #034275;
+        --brand-grey: #3D3D3D;
+        --card-bg: #FFFFFF;
+    }
+
+    /* تحسين العناوين الرئيسية */
     h1, h2, h3 {
-        color: #2c3e50; /* كحلي غامق */
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--brand-blue) !important;
     }
-    
-    /* 3. تصميم بطاقات البائعين */
-    .salesman-card {
-        background-color: #ffffff;
+
+    /* تصميم البطاقات الذكية (Smart Cards)
+       هذه البطاقات خلفيتها بيضاء دائماً لضمان قراءة النصوص
+       سواء كان وضع الجهاز ليلي أو نهاري
+    */
+    .metric-card {
+        background-color: var(--card-bg);
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
         padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 15px;
-        border-left: 5px solid #2c3e50; /* حدود بلون الهوية */
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
-    }
-    .salesman-card:hover {
-        transform: translateY(-5px);
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 10px;
+        border-top: 5px solid var(--brand-blue); /* لمسة الهوية */
     }
     
-    /* 4. تصميم الأرقام الكبيرة (KPIs) */
-    [data-testid="stMetricValue"] {
+    .metric-card h4 {
+        color: var(--brand-grey) !important;
+        font-size: 16px;
+        margin-bottom: 5px;
+    }
+    
+    .metric-card h2 {
+        color: var(--brand-blue) !important;
         font-size: 28px;
-        color: #2980b9; /* أزرق مؤسسي */
         font-weight: bold;
+        margin: 0;
+    }
+
+    /* بطاقات البائعين */
+    .salesman-card {
+        background-color: var(--card-bg);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        border-right: 5px solid var(--brand-blue); /* شريط جانبي أزرق */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
-    /* 5. الشريط الجانبي */
-    [data-testid="stSidebar"] {
-        background-color: #f1f3f6;
-        border-right: 1px solid #ddd;
-    }
+    /* إجبار النصوص داخل البطاقات تكون بألوان الهوية لتكون واضحة دائماً */
+    .salesman-card h3 { color: var(--brand-blue) !important; margin-bottom: 10px; }
+    .salesman-card span { color: var(--brand-grey) !important; font-weight: 500; }
+    .salesman-card b { color: #000000 !important; }
     
-    /* 6. الجداول */
-    .stDataFrame {
-        border: 1px solid #ddd;
-        border-radius: 5px;
-    }
+    /* إخفاء القوائم الافتراضية المزعجة */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
 </style>
 """, unsafe_allow_html=True)
 
 # --- 2. الحماية ---
 if "password" not in st.session_state: st.session_state["password"] = ""
 if st.session_state["password"] != st.secrets["PASSWORD"]:
-    st.title("🔒 بوابة شان الحديثة"); password = st.text_input("رمز الدخول المصرح به", type="password")
+    st.title("🔒 بوابة شان الحديثة"); password = st.text_input("رمز الدخول", type="password")
     if password == st.secrets["PASSWORD"]: st.session_state["password"] = password; st.rerun()
     else: st.stop()
 
-# --- دالة توحيد الأسماء (نفس اللوجيك الناجح) ---
+# --- 3. المعالجة والمنطق ---
 def normalize_salesman_name(name):
     if pd.isna(name) or name == 'nan' or name == 'غير محدد': return 'غير محدد'
     name = str(name).strip()
@@ -74,7 +97,6 @@ def normalize_salesman_name(name):
     if 'عبد' in name and 'الله' in name: return 'عبد الله'
     return name
 
-# --- 3. المعالجة الآلية ---
 @st.cache_data(ttl=3600)
 def load_auto_data(file_header, file_items):
     try:
@@ -132,32 +154,33 @@ def load_auto_data(file_header, file_items):
         if 'stockgroup' not in full_data.columns: full_data['stockgroup'] = 'عام'
 
         return full_data.dropna(subset=['Date'])
-    except Exception as e: st.error(f"خطأ فني: {e}"); return None
+    except Exception as e: st.error(f"Error: {e}"); return None
 
 # --- 4. الواجهة الرسمية ---
-st.title("🏢 لوحة المعلومات المالية والفنية لشركة شان الحديثة")
+st.title("🏢 شركة شان الحديثة التجارية")
+st.markdown("<h5 style='color: #3D3D3D;'>لوحة المعلومات المالية والفنية | Financial Dashboard</h5>", unsafe_allow_html=True)
 st.markdown("---")
 
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80) # أيقونة مؤقتة حتى نضع الشعار
     st.header("📂 مركز البيانات")
-    f1 = st.file_uploader("1. ملف الفواتير (Invoice)", type=['xml'])
-    f2 = st.file_uploader("2. ملف الأصناف (Items)", type=['xml'])
+    f1 = st.file_uploader("1. ملف الفواتير (StockInvoiceDetails.xml)", type=['xml'])
+    f2 = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems.xml)", type=['xml'])
     
     st.markdown("---")
-    st.caption("Shan Modern Trading Co. © 2026")
+    st.markdown("**Shan Modern Trading Co.**")
+    st.caption("© 2026 Dashboard v2.0")
 
 if f1 and f2:
     df = load_auto_data(f1, f2)
     
     if df is not None:
         # الفلاتر
+        st.sidebar.markdown("### 🔍 أدوات التصفية")
         min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
-        st.sidebar.markdown("### 🔍 تصفية العرض")
         d_range = st.sidebar.date_input("📅 النطاق الزمني", [min_d, max_d])
         
         salesman_list = ['الكل'] + sorted(list(df['SalesMan_Clean'].astype(str).unique()))
-        salesman_filter = st.sidebar.selectbox("👤 الموظف المسؤول", salesman_list)
+        salesman_filter = st.sidebar.selectbox("👤 البائع", salesman_list)
 
         df_filtered = df.copy()
         if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
@@ -166,26 +189,31 @@ if f1 and f2:
         if salesman_filter != 'الكل':
             df_filtered = df_filtered[df_filtered['SalesMan_Clean'] == salesman_filter]
 
-        # 1. شريط الأرقام المؤسسية (KPIs)
+        # --- 1. البطاقات العائمة (KPIs) ---
+        # نستخدم HTML مخصص بدلاً من st.metric لضمان الألوان
         total_sales = df_filtered['Amount'].sum()
         total_profit = df_filtered['Profit'].sum()
         total_cost = df_filtered['TotalCost'].sum()
         margin = (total_profit / total_sales * 100) if total_sales > 0 else 0
-        
         days_diff = (d_range[1] - d_range[0]).days if isinstance(d_range, (list, tuple)) and len(d_range) == 2 else 1
         months_diff = max(days_diff / 30, 1)
 
-        # تصميم كلاسيكي للأرقام
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("صافي الإيرادات", f"{total_sales:,.0f} ر.س", "المبيعات المحققة")
-        col2.metric("تكلفة البضاعة", f"{total_cost:,.0f} ر.س", "Cost of Goods")
-        col3.metric("صافي الأرباح", f"{total_profit:,.0f} ر.س", f"{margin:.1f}% هامش فعلي")
-        col4.metric("المتوسط الشهري", f"{total_sales/months_diff:,.0f} ر.س", "أداء المبيعات")
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        
+        with kpi1:
+            st.markdown(f"""<div class="metric-card"><h4>صافي المبيعات</h4><h2>{total_sales:,.0f}</h2></div>""", unsafe_allow_html=True)
+        with kpi2:
+            st.markdown(f"""<div class="metric-card"><h4>تكلفة البضاعة</h4><h2>{total_cost:,.0f}</h2></div>""", unsafe_allow_html=True)
+        with kpi3:
+            st.markdown(f"""<div class="metric-card"><h4>صافي الأرباح</h4><h2 style='color:#27ae60 !important;'>{total_profit:,.0f}</h2><span style='color:grey'>{margin:.1f}%</span></div>""", unsafe_allow_html=True)
+        with kpi4:
+            st.markdown(f"""<div class="metric-card"><h4>المتوسط الشهري</h4><h2>{total_sales/months_diff:,.0f}</h2></div>""", unsafe_allow_html=True)
 
-        st.markdown("---")
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        # 2. بطاقات الفريق (التصميم الجديد)
-        st.subheader("👥 أداء فريق المبيعات")
+        # --- 2. بطاقات الفريق ---
+        st.subheader("👥 أداء الفريق")
+        
         salesmen_stats = []
         for sm in df_filtered['SalesMan_Clean'].unique():
             if sm == 'غير محدد': continue
@@ -199,57 +227,44 @@ if f1 and f2:
             return_count = returns_only['TransCode'].nunique()
             
             salesmen_stats.append({
-                'البائع': sm,
-                'المبيعات': net_sales,
-                'الربح': net_profit,
-                'النسبة': sm_margin,
-                'قيمة المرتجعات': return_val,
-                'عدد المرتجعات': return_count
+                'البائع': sm, 'المبيعات': net_sales, 'الربح': net_profit, 'النسبة': sm_margin,
+                'قيمة المرتجعات': return_val, 'عدد المرتجعات': return_count
             })
             
         cols = st.columns(len(salesmen_stats)) if len(salesmen_stats) > 0 else []
         for i, stat in enumerate(salesmen_stats):
             with cols[i]:
-                # HTML Card Design
                 st.markdown(f"""
                 <div class="salesman-card">
-                    <h4 style="margin:0; color:#2c3e50;">👤 {stat['البائع']}</h4>
-                    <div style="height: 2px; background-color: #eee; margin: 10px 0;"></div>
-                    <div style="display:flex; justify-content:space-between; font-size:14px;">
-                        <span style="color:#7f8c8d;">المبيعات:</span>
-                        <span style="font-weight:bold; color:#2c3e50;">{stat['المبيعات']:,.0f}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; font-size:14px; margin-top:5px;">
-                        <span style="color:#7f8c8d;">الربح:</span>
-                        <span style="font-weight:bold; color:#27ae60;">{stat['الربح']:,.0f} ({stat['النسبة']:.0f}%)</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; font-size:12px; margin-top:8px; color:#c0392b;">
-                        <span>↩️ مرتجع:</span>
-                        <span>{stat['قيمة المرتجعات']:,.0f}</span>
-                    </div>
+                    <h3>{stat['البائع']}</h3>
+                    <div style="display:flex; justify-content:space-between;"><span>💰 مبيعات:</span><b>{stat['المبيعات']:,.0f}</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>📈 ربح:</span><b style="color:#27ae60 !important">{stat['الربح']:,.0f} ({stat['النسبة']:.0f}%)</b></div>
+                    <hr style="margin:8px 0; border-color:#eee;">
+                    <div style="display:flex; justify-content:space-between;"><span style="color:#c0392b !important">↩️ مرتجع:</span><b>{stat['قيمة المرتجعات']:,.0f}</b></div>
                 </div>
                 """, unsafe_allow_html=True)
 
-        # 3. الرسوم البيانية (Charts)
-        st.markdown("### 📊 المؤشرات البيانية")
-        tab1, tab2 = st.tabs(["التدفق اليومي", "توزيع الماركات"])
+        # --- 3. الرسوم البيانية ---
+        st.markdown("---")
+        tab1, tab2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
         with tab1:
             daily_data = df_filtered.groupby('Date')[['Amount', 'Profit']].sum().reset_index()
-            # تعديل ألوان الرسم لتناسب الهوية
+            # استخدام ألوان الهوية في الرسم البياني
             fig = px.line(daily_data, x='Date', y=['Amount', 'Profit'], markers=True, 
-                          color_discrete_map={'Amount': '#2980b9', 'Profit': '#27ae60'})
+                          color_discrete_map={'Amount': '#034275', 'Profit': '#27ae60'})
+            fig.update_layout(plot_bgcolor="rgba(0,0,0,0)") # خلفية شفافة
             st.plotly_chart(fig, use_container_width=True)
         with tab2:
             group_perf = df_filtered.groupby('stockgroup')[['Amount', 'Profit']].sum().reset_index().sort_values('Profit', ascending=False).head(10)
-            fig_pie = px.pie(group_perf, values='Profit', names='stockgroup', hole=0.5, color_discrete_sequence=px.colors.sequential.RdBu)
+            fig_pie = px.pie(group_perf, values='Profit', names='stockgroup', hole=0.5, 
+                             color_discrete_sequence=px.colors.sequential.Blues_r)
             st.plotly_chart(fig_pie, use_container_width=True)
 
-        # 4. التقرير التفصيلي (Table)
+        # --- 4. التقرير والتصدير ---
         st.markdown("---")
         c1, c2 = st.columns([3, 1])
-        with c1: st.subheader("📦 تقرير المخزون: التحليل المالي والفني للأصناف")
+        with c1: st.subheader("📦 تقرير المخزون الشامل")
         
-        # التجميع النهائي
         items_summary = df_filtered.groupby(['StockName', 'StockCode', 'stockgroup']).agg(
             الكمية=('Qty', 'sum'),
             المبيعات=('Amount', 'sum'),
@@ -259,21 +274,17 @@ if f1 and f2:
         
         items_summary['هامش_%'] = (items_summary['الربح'] / items_summary['المبيعات'] * 100).fillna(0)
         items_summary['تصريف_شهري'] = items_summary['الكمية'] / months_diff
-        items_summary['ربح_شهري'] = items_summary['الربح'] / months_diff
         items_summary = items_summary.sort_values('الربح', ascending=False)
         
-        # زر التصدير
         with c2:
             csv = items_summary.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("📥 تصدير التقرير (Excel)", data=csv, file_name="Shan_Report.csv", mime="text/csv")
+            st.download_button("📥 تحميل التقرير (Excel)", data=csv, file_name="Shan_Full_Report.csv", mime="text/csv")
 
-        # الجدول
         st.dataframe(
             items_summary,
             column_config={
                 "StockName": "اسم الصنف",
                 "stockgroup": "المجموعة",
-                "StockCode": "رقم القطعة",
                 "المبيعات": st.column_config.NumberColumn(format="%d"),
                 "الربح": st.column_config.NumberColumn(format="%d"),
                 "هامش_%": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
@@ -284,4 +295,5 @@ if f1 and f2:
         )
 
 else:
-    st.info("👋 مرحباً بك في نظام شان الحديثة.. الرجاء رفع ملفات البيانات لبدء الجلسة.")
+    # شاشة الترحيب
+    st.info("👋 مرحباً بك في نظام شان الحديثة.. الرجاء رفع ملفات البيانات.")
