@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 🎨 التصميم (CSS - إصلاح الألوان والتباين) ---
+# --- 🎨 التصميم (CSS - ألوان عالية الوضوح) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
@@ -21,43 +21,45 @@ st.markdown("""
         font-family: 'Tajawal', sans-serif;
     }
 
-    .stApp { background-color: #f8f9fa; }
+    .stApp { background-color: #f0f2f6; }
 
     :root {
         --brand-blue: #034275;
         --card-white: #ffffff;
+        --text-black: #000000;
     }
 
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* الصناديق والكروت (إجبار النصوص على السواد) */
+    /* صناديق المحتوى بيضاء تماماً والنص أسود */
     .content-box, .metric-card, .salesman-box, .filters-box {
         background-color: #ffffff !important;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        padding: 20px;
+        margin-bottom: 15px;
     }
 
-    /* إجبار كل النصوص داخل الكروت لتكون غامقة */
+    /* إجبار جميع النصوص داخل الكروت على اللون الأسود */
     .content-box *, .metric-card *, .salesman-box *, .filters-box * {
         color: #333333 !important;
     }
 
-    .content-title { color: #034275 !important; font-weight: 800 !important; }
+    .content-title { color: #034275 !important; font-weight: 800 !important; font-size: 24px !important; }
     
     .metric-value {
-        color: #034275 !important; font-size: 22px !important; font-weight: 900 !important; direction: ltr;
+        color: #034275 !important; font-size: 26px !important; font-weight: 900 !important; direction: ltr;
     }
-    .metric-sub { color: #666 !important; font-size: 11px !important; font-weight: bold; }
-    .s-name { color: #034275 !important; font-size: 18px !important; font-weight: 800 !important; }
+    .metric-label { font-size: 14px !important; font-weight: bold !important; color: #555 !important; }
+    .metric-sub { color: #777 !important; font-size: 12px !important; }
     
-    .s-row {
-        border-bottom: 1px dashed #eee; padding-bottom: 5px; margin-bottom: 5px;
-        display: flex; justify-content: space-between; direction: rtl;
-    }
+    .s-name { color: #034275 !important; font-size: 18px !important; font-weight: 800 !important; }
+    .s-row { border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; direction: rtl; }
 
-    .stFileUploader label { color: #333 !important; font-weight: bold; }
+    /* تنبيهات واضحة */
+    .stAlert { background-color: #fff3cd !important; color: #856404 !important; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -144,7 +146,7 @@ def inspect_ledger_file(file_ledger):
 
 # --- 4. القائمة الجانبية ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=70)
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80)
     st.markdown("### شان الحديثة | Shan Modern")
     st.markdown("---")
     
@@ -267,7 +269,7 @@ elif selected_page == "💸 التحصيل والديون":
     st.markdown("""
     <div class="content-box">
         <h2 class="content-title">💸 مراقبة الديون والتحصيل</h2>
-        <p>تحليل الأرصدة المستحقة (للحسابات التي تبدأ بـ 113 أو 221)</p>
+        <p>تحليل الأرصدة المستحقة (القائمة الذهبية للعملاء)</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -279,77 +281,69 @@ elif selected_page == "💸 التحصيل والديون":
             df_ledger['Dr'] = pd.to_numeric(df_ledger['Dr'], errors='coerce').fillna(0)
             df_ledger['Cr'] = pd.to_numeric(df_ledger['Cr'], errors='coerce').fillna(0)
             
-            # 🔍 الفلترة الذهبية (رقم الحساب يبدأ بـ 113 أو 221)
-            # AcLedger هو العمود المتوقع لرقم الحساب
-            if 'AcLedger' in df_ledger.columns:
-                # نحول العمود لنص وننظفه
-                df_ledger['AcLedger_Str'] = df_ledger['AcLedger'].astype(str).str.split('.').str[0]
-                
-                # شرط الفلترة
-                # Startswith تقبل tuple ('113', '221')
-                customers_only = df_ledger[df_ledger['AcLedger_Str'].str.startswith(('113', '221'))]
-                
-                if not customers_only.empty:
-                    # تجميع البيانات للعملاء المفلترين فقط
-                    customers_summary = customers_only.groupby(['LedgerName', 'AcLedger_Str']).agg(
-                        Total_Debit=('Dr', 'sum'),
-                        Total_Credit=('Cr', 'sum'),
-                        Transactions=('TransCode', 'count')
-                    ).reset_index()
-                    
-                    customers_summary['Balance'] = customers_summary['Total_Debit'] - customers_summary['Total_Credit']
-                    
-                    # عرض الديون الموجبة فقط (أكبر من 1 ريال)
-                    debtors = customers_summary[customers_summary['Balance'] > 1].sort_values('Balance', ascending=False)
-                    
-                    # KPIs
-                    total_debt = debtors['Balance'].sum()
-                    total_collected = debtors['Total_Credit'].sum()
-                    collection_rate = (total_collected / (total_collected + total_debt) * 100) if total_debt > 0 else 0
-                    debtors_count = debtors['LedgerName'].nunique()
-                    
-                    k1, k2, k3, k4 = st.columns(4)
-                    def metric_card(title, value, sub, color="#034275"):
-                        return f"""<div class="metric-card"><div class="metric-label">{title}</div><div class="metric-value" style="color: {color} !important;">{value}</div><div class="metric-sub">{sub}</div></div>"""
+            # --- التجميع (Aggregation) ---
+            # نجمع كل الحركات لكل اسم (LedgerName)
+            customers_summary = df_ledger.groupby('LedgerName').agg(
+                Total_Debit=('Dr', 'sum'),  # عليه
+                Total_Credit=('Cr', 'sum'), # دفع
+                Transactions=('TransCode', 'count')
+            ).reset_index()
+            
+            # الرصيد = المدين - الدائن
+            customers_summary['Balance'] = customers_summary['Total_Debit'] - customers_summary['Total_Credit']
+            
+            # --- الفلتر الذكي (بدون رقم حساب) ---
+            # 1. نستبعد الأرصدة السالبة (الموردين)
+            # 2. نستبعد الأرصدة الصفرية (المخلصين)
+            # 3. نأخذ فقط من رصيده أكبر من 100 ريال (لتجاهل الكسور الصغيرة والهللات)
+            debtors = customers_summary[customers_summary['Balance'] > 100].sort_values('Balance', ascending=False)
+            
+            # KPIs
+            total_debt = debtors['Balance'].sum()
+            total_collected = debtors['Total_Credit'].sum()
+            collection_rate = (total_collected / (total_collected + total_debt) * 100) if total_debt > 0 else 0
+            debtors_count = debtors['LedgerName'].nunique()
+            
+            # عرض الكروت
+            k1, k2, k3, k4 = st.columns(4)
+            def metric_card(title, value, sub, color="#034275"):
+                return f"""<div class="metric-card"><div class="metric-label">{title}</div><div class="metric-value" style="color: {color} !important;">{value}</div><div class="metric-sub">{sub}</div></div>"""
 
-                    with k1: st.markdown(metric_card("إجمالي الديون (لكم)", f"{total_debt:,.0f}", "رصيد قائم", "#c0392b"), unsafe_allow_html=True)
-                    with k2: st.markdown(metric_card("إجمالي التحصيل", f"{total_collected:,.0f}", "مقبوضات", "#27ae60"), unsafe_allow_html=True)
-                    with k3: st.markdown(metric_card("نسبة التحصيل", f"{collection_rate:.1f}%", "معدل السداد"), unsafe_allow_html=True)
-                    with k4: st.markdown(metric_card("عدد العملاء المدينين", f"{debtors_count}", "حساب نشط"), unsafe_allow_html=True)
-                    
-                    st.markdown("---")
-                    
-                    c1, c2 = st.columns([2, 1])
-                    with c1:
-                        st.subheader("📊 أعلى 10 مديونيات")
-                        fig = px.bar(debtors.head(10), x='LedgerName', y='Balance', text_auto='.2s', color='Balance', color_continuous_scale='Reds')
-                        fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(color="black"))
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                    with c2:
-                        st.subheader("توزيع الديون")
-                        def cat_debt(amt): return '> 50k' if amt > 50000 else ('> 10k' if amt > 10000 else '< 10k')
-                        debtors['Cat'] = debtors['Balance'].apply(cat_debt)
-                        fig_pie = px.pie(debtors, values='Balance', names='Cat', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-                        st.plotly_chart(fig_pie, use_container_width=True)
+            with k1: st.markdown(metric_card("إجمالي الديون (لكم)", f"{total_debt:,.0f}", "رصيد قائم", "#c0392b"), unsafe_allow_html=True)
+            with k2: st.markdown(metric_card("إجمالي التحصيل", f"{total_collected:,.0f}", "مقبوضات", "#27ae60"), unsafe_allow_html=True)
+            with k3: st.markdown(metric_card("نسبة التحصيل", f"{collection_rate:.1f}%", "معدل السداد"), unsafe_allow_html=True)
+            with k4: st.markdown(metric_card("عدد المدينين", f"{debtors_count}", "عميل عليه رصيد"), unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Charts
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                st.subheader("📊 أعلى 10 مديونيات")
+                fig = px.bar(debtors.head(10), x='LedgerName', y='Balance', text_auto='.2s', color='Balance', color_continuous_scale='Reds')
+                fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font=dict(color="black"), xaxis_title="العميل", yaxis_title="المبلغ")
+                st.plotly_chart(fig, use_container_width=True)
+                
+            with c2:
+                st.subheader("توزيع الديون")
+                def cat_debt(amt): return '> 50k' if amt > 50000 else ('> 10k' if amt > 10000 else '< 10k')
+                debtors['Cat'] = debtors['Balance'].apply(cat_debt)
+                pie_data = debtors.groupby('Cat')['Balance'].sum().reset_index()
+                fig_pie = px.pie(pie_data, values='Balance', names='Cat', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                st.plotly_chart(fig_pie, use_container_width=True)
 
-                    st.markdown("### 📋 كشف الأرصدة التفصيلي")
-                    st.dataframe(
-                        debtors[['AcLedger_Str', 'LedgerName', 'Total_Debit', 'Total_Credit', 'Balance']],
-                        column_config={
-                            "AcLedger_Str": "رقم الحساب",
-                            "LedgerName": "العميل",
-                            "Total_Debit": st.column_config.NumberColumn("مسحوبات", format="%d"),
-                            "Total_Credit": st.column_config.NumberColumn("سداد", format="%d"),
-                            "Balance": st.column_config.NumberColumn("الرصيد (دين)", format="%d")
-                        },
-                        use_container_width=True,
-                        height=600
-                    )
-                else:
-                    st.warning("لم يتم العثور على حسابات تبدأ بـ 113 أو 221 في الملف.")
-            else:
-                st.error("لم نتمكن من العثور على عمود 'AcLedger' في الملف. الرجاء التأكد من صحة الملف.")
+            st.markdown("### 📋 كشف الأرصدة التفصيلي")
+            st.dataframe(
+                debtors[['LedgerName', 'Total_Debit', 'Total_Credit', 'Balance']],
+                column_config={
+                    "LedgerName": "العميل",
+                    "Total_Debit": st.column_config.NumberColumn("مسحوبات", format="%d"),
+                    "Total_Credit": st.column_config.NumberColumn("سداد", format="%d"),
+                    "Balance": st.column_config.NumberColumn("الرصيد المتبقى", format="%d")
+                },
+                use_container_width=True,
+                height=600
+            )
             
     else:
         st.warning("⚠️ الرجاء رفع ملف LedgerBook.xml من القائمة الجانبية.")
