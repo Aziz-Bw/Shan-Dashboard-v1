@@ -9,10 +9,10 @@ st.set_page_config(
     page_title="Shan Modern | شان الحديثة", 
     layout="wide", 
     page_icon="🏢",
-    initial_sidebar_state="expanded" # إظهار القائمة الجانبية للتنقل
+    initial_sidebar_state="expanded"
 )
 
-# --- 🎨 التصميم (CSS) ---
+# --- 🎨 تصميم الألوان (CSS Fix) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap');
@@ -21,84 +21,106 @@ st.markdown("""
         font-family: 'Tajawal', sans-serif;
     }
 
+    /* الألوان الثابتة */
     :root {
         --brand-blue: #034275;
-        --brand-dark: #2c3e50;
-        --card-bg: #ffffff;
+        --text-dark: #333333;
+        --card-white: #ffffff;
     }
 
-    /* تحسين القائمة الجانبية (Sidebar) */
-    [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
-        border-right: 1px solid #ddd;
-    }
-    
-    /* إخفاء القوائم الافتراضية */
+    /* إخفاء العناصر المزعجة */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* الحاويات */
-    .filters-box {
-        background-color: var(--card-bg);
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        border-top: 4px solid var(--brand-blue);
-        margin-bottom: 25px;
-    }
-
-    /* --- بطاقات المؤشرات (KPIs) --- */
+    /* --- إصلاح البطاقات (الحل الجذري للقراءة) --- */
+    /* نجبر البطاقة تكون بيضاء والنص بداخلها غامق دائماً */
+    
     .metric-card {
-        background-color: var(--card-bg) !important;
+        background-color: var(--card-white) !important;
         border: 1px solid #e0e0e0;
         border-radius: 10px;
         padding: 15px 5px;
         text-align: center;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.05);
-        height: 150px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        height: 160px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        transition: transform 0.2s;
     }
-    .metric-card:hover { transform: translateY(-5px); }
     
-    .metric-label { color: #666 !important; font-size: 13px; font-weight: 700; margin-bottom: 5px; white-space: nowrap; }
-    .metric-value { color: var(--brand-blue) !important; font-size: 22px; font-weight: 800; margin: 0; direction: ltr; }
-    .metric-sub { color: #888 !important; font-size: 11px; margin-top: 5px; font-weight: bold; }
+    /* نجبر العناوين داخل البطاقة على اللون الرمادي */
+    .metric-card .metric-label {
+        color: #666666 !important; 
+        font-size: 13px; 
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    
+    /* نجبر الأرقام على اللون الكحلي */
+    .metric-card .metric-value {
+        color: #034275 !important;
+        font-size: 20px;
+        font-weight: 800;
+        margin: 0;
+        direction: ltr;
+    }
+    
+    .metric-card .metric-sub {
+        color: #888888 !important;
+        font-size: 11px;
+        margin-top: 5px;
+        font-weight: bold;
+    }
 
-    /* --- بطاقات البائعين --- */
+    /* --- بطاقات البائعين (إصلاح الألوان) --- */
     .salesman-box {
-        background-color: var(--card-bg) !important;
+        background-color: var(--card-white) !important;
         border-radius: 12px;
         padding: 18px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-        border-right: 5px solid var(--brand-blue);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-right: 5px solid #034275;
         margin-bottom: 15px;
         direction: rtl;
         border: 1px solid #eee;
     }
-    .s-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 12px; text-align: right; display: flex; justify-content: space-between; align-items: center; }
-    .s-name { color: var(--brand-blue) !important; font-size: 18px; font-weight: 800; }
-    .s-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; direction: rtl; border-bottom: 1px dashed #f5f5f5; padding-bottom: 4px; }
-    .s-label { color: #555 !important; font-size: 13px; font-weight: 600; }
-    .s-val { color: #333 !important; font-size: 14px; font-weight: 800; font-family: 'Tajawal', sans-serif; }
+
+    /* النصوص داخل بطاقة البائع */
+    .salesman-box .s-name {
+        color: #034275 !important;
+        font-size: 18px;
+        font-weight: 800;
+    }
+    
+    .salesman-box .s-label {
+        color: #555555 !important;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    
+    .salesman-box .s-val {
+        color: #000000 !important; /* أسود صريح */
+        font-size: 14px;
+        font-weight: 800;
+    }
+    
+    /* فواصل الأسطر */
+    .s-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 12px; }
+    .s-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px dashed #f5f5f5; padding-bottom: 4px; }
 
     /* أنيميشن */
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     .row-anim { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
     .d-1 { animation-delay: 0.1s; } .d-2 { animation-delay: 0.3s; } .d-3 { animation-delay: 0.5s; }
-    .d-4 { animation-delay: 0.7s; } .d-5 { animation-delay: 0.9s; } .d-6 { animation-delay: 1.1s; }
+    .d-4 { animation-delay: 0.7s; } .d-5 { animation-delay: 0.9s; }
 
 </style>
 """, unsafe_allow_html=True)
 
 # --- 2. إدارة الحالة ---
 if 'uploaded_files' not in st.session_state: st.session_state['uploaded_files'] = None
-if 'ledger_files' not in st.session_state: st.session_state['ledger_files'] = None # ملفات التحصيل مستقبلاً
 
-# --- 3. المعالجة (دوال المبيعات) ---
+# --- 3. المعالجة ---
 def normalize_salesman_name(name):
     if pd.isna(name) or name == 'nan' or name == 'غير محدد': return 'غير محدد'
     name = str(name).strip()
@@ -164,33 +186,28 @@ def load_sales_data(file_header, file_items):
         return full_data.dropna(subset=['Date'])
     except Exception as e: st.error(f"Error: {e}"); return None
 
-# --- 4. القائمة الجانبية ونظام التنقل ---
+# --- 4. القائمة الجانبية ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80)
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=70)
     st.markdown("### شان الحديثة | Shan Modern")
     st.markdown("---")
     
-    # القائمة الرئيسية
     selected_page = st.radio(
         "القائمة الرئيسية",
-        ["🏠 لوحة القيادة (Dashboard)", "💰 المبيعات (Sales)", "💸 التحصيل والديون (Collection)"],
-        index=1 # نبدأ بصفحة المبيعات افتراضياً لأنها الجاهزة
+        ["💰 المبيعات (Sales)", "💸 التحصيل (قريباً)"],
+        index=0
     )
     
     st.markdown("---")
+    st.info("📁 **رفع الملفات المطلوبة**")
     
-    # قسم رفع الملفات (مشترك أو مخصص حسب الصفحة)
-    st.info("📁 إدارة الملفات")
-    if selected_page == "💰 المبيعات (Sales)" or selected_page == "🏠 لوحة القيادة (Dashboard)":
-        f1 = st.file_uploader("1. الفواتير (Invoice)", type=['xml'], key="f1_uploader")
-        f2 = st.file_uploader("2. الأصناف (Items)", type=['xml'], key="f2_uploader")
-        if f1 and f2: st.session_state['uploaded_files'] = (f1, f2)
+    # أسماء الملفات واضحة هنا 👇
+    f1 = st.file_uploader("1. ملف الفواتير (StockInvoiceDetails.xml)", type=['xml'], key="f1")
+    f2 = st.file_uploader("2. ملف الأصناف (StockInvoiceRowItems.xml)", type=['xml'], key="f2")
+    
+    if f1 and f2: st.session_state['uploaded_files'] = (f1, f2)
 
-# --- 5. محرك الصفحات ---
-
-# ==========================
-# صفحة 1: المبيعات (نفس الكود السابق)
-# ==========================
+# --- 5. صفحة المبيعات ---
 if selected_page == "💰 المبيعات (Sales)":
     
     if st.session_state['uploaded_files']:
@@ -200,11 +217,11 @@ if selected_page == "💰 المبيعات (Sales)":
         if df is not None:
             # Header
             st.markdown('<div class="row-anim d-1">', unsafe_allow_html=True)
-            st.markdown("<h2 style='color:#034275; margin:0;'>💰 تحليل المبيعات والربحية</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='color:#034275; margin:0;'>💰 تحليل المبيعات والأداء</h2>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
             # Filters
-            st.markdown('<div class="row-anim d-2 filters-box">', unsafe_allow_html=True)
+            st.markdown('<div class="row-anim d-2" style="background:white; padding:15px; border-radius:10px; margin:20px 0;">', unsafe_allow_html=True)
             min_d, max_d = df['Date'].min().date(), df['Date'].max().date()
             fc1, fc2 = st.columns(2)
             with fc1: d_range = st.date_input("📅 الفترة الزمنية", [min_d, max_d])
@@ -213,13 +230,14 @@ if selected_page == "💰 المبيعات (Sales)":
                 s_filter = st.selectbox("👤 موظف المبيعات", s_list)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Logic & Calc
+            # Logic
             df_filtered = df.copy()
             if isinstance(d_range, (list, tuple)) and len(d_range) == 2:
                 df_filtered = df_filtered[(df_filtered['Date'].dt.date >= d_range[0]) & (df_filtered['Date'].dt.date <= d_range[1])]
             if s_filter != 'الكل':
                 df_filtered = df_filtered[df_filtered['SalesMan_Clean'] == s_filter]
 
+            # Calcs
             net_sales = df_filtered['Amount'].sum()
             total_cost = df_filtered['TotalCost'].sum()
             total_profit = df_filtered['Profit'].sum()
@@ -263,9 +281,9 @@ if selected_page == "💰 المبيعات (Sales)":
                 s_ret_c = data[data['Amount'] < 0]['TransCode'].nunique()
                 s_inv = data[data['Amount'] > 0]['TransCode'].nunique()
                 border = "#27ae60" if is_total else "#034275"
-                name_col = "#333" if is_total else "#034275"
+                name_col = "#000" if is_total else "#034275"
                 
-                html = f"""<div class="salesman-box" style="border-right: 5px solid {border};"><div class="s-header"><div class="s-name" style="color:{name_col} !important">{name}</div>{'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px;">الإجمالي</span>' if is_total else ''}</div><div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net:,.0f}</span></div><div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_prof:,.0f} ({s_marg:.1f}%)</span></div><div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv}</span></div><div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;"><span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span><span class="s-val" style="color:#c0392b !important">{s_ret_v:,.0f} ({s_ret_c})</span></div></div>"""
+                html = f"""<div class="salesman-box" style="border-right: 5px solid {border};"><div class="s-header"><div class="s-name" style="color:{name_col} !important">{name}</div>{'<span style="font-size:11px; background:#eee; padding:2px 6px; border-radius:4px; color:#333;">الإجمالي</span>' if is_total else ''}</div><div class="s-row"><span class="s-label">💰 المبيعات:</span><span class="s-val">{s_net:,.0f}</span></div><div class="s-row"><span class="s-label">📈 الربح:</span><span class="s-val" style="color:#27ae60 !important">{s_prof:,.0f} ({s_marg:.1f}%)</span></div><div class="s-row"><span class="s-label">🧾 الفواتير:</span><span class="s-val">{s_inv}</span></div><div class="s-row" style="border-top:1px dashed #eee; margin-top:6px; padding-top:4px;"><span class="s-label" style="color:#c0392b !important">↩️ الإرجاع:</span><span class="s-val" style="color:#c0392b !important">{s_ret_v:,.0f} (عدد: {s_ret_c})</span></div></div>"""
                 with col: st.markdown(html, unsafe_allow_html=True)
 
             idx = 0
@@ -276,7 +294,7 @@ if selected_page == "💰 المبيعات (Sales)":
             draw_salesman(cols[2], "إجمالي الفريق", df_filtered, is_total=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Charts (Row 5)
+            # Charts
             st.markdown('<div class="row-anim d-5">', unsafe_allow_html=True)
             st.markdown("---")
             t1, t2 = st.tabs(["التدفق الزمني", "توزيع الماركات"])
@@ -291,7 +309,7 @@ if selected_page == "💰 المبيعات (Sales)":
                 st.plotly_chart(fig_pie, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Table (Row 6)
+            # Table
             st.markdown('<div class="row-anim d-6">', unsafe_allow_html=True)
             st.markdown("---")
             c1, c2 = st.columns([3, 1])
@@ -311,41 +329,3 @@ if selected_page == "💰 المبيعات (Sales)":
             
     else:
         st.warning("⚠️ الرجاء رفع ملفات الفواتير من القائمة الجانبية لعرض المبيعات.")
-
-# ==========================
-# صفحة 2: التحصيل والديون (الصفحة الجديدة)
-# ==========================
-elif selected_page == "💸 التحصيل والديون (Collection)":
-    st.markdown("<h2 style='color:#034275;'>💸 مراقبة الديون والتحصيل</h2>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    st.info("""
-    **💡 للبدء في تحليل التحصيل، نحتاج لبيانات كشف الحساب.**
-    
-    البيانات الحالية (الفواتير) تخبرنا عن البيع، لكنها لا تخبرنا من سدد ومن عليه مديونية قديمة.
-    
-    **المطلوب:**
-    الرجاء البحث في النظام وتصدير ملف **LedgerBook.xml** أو **StatementOfAccount** ورفعه هنا.
-    """)
-    
-    ledger_file = st.file_uploader("📂 رفع ملف دفتر الأستاذ (LedgerBook.xml)", type=['xml'])
-    
-    if ledger_file:
-        st.session_state['ledger_files'] = ledger_file
-        st.success("تم استلام الملف! (سأقوم ببرمجة تحليل هذا الملف في الخطوة التالية بمجرد تأكيدك)")
-        # هنا سنضع كود معالجة التحصيل لاحقاً
-
-# ==========================
-# صفحة 3: لوحة القيادة العامة
-# ==========================
-elif selected_page == "🏠 لوحة القيادة (Dashboard)":
-    st.markdown("<h2 style='color:#034275;'>🏠 النظرة الشاملة (Executive Summary)</h2>", unsafe_allow_html=True)
-    st.markdown("---")
-    
-    # هنا سنقوم بدمج أهم رقمين من المبيعات وأهم رقمين من التحصيل
-    if st.session_state['uploaded_files']:
-        st.success("✅ بيانات المبيعات متصلة")
-    else:
-        st.warning("⚠️ بيانات المبيعات غير متصلة")
-        
-    st.write("هنا ستظهر المؤشرات المدمجة (سيولة + ربحية) بمجرد اكتمال ملف التحصيل.")
